@@ -11,6 +11,7 @@ SETTINGS_PATH = CONFIG_DIR / "vok_settings.json"
 _DEFAULTS = {
     "download_path": str(DOWNLOADS_DIR),
     "single_video_default": True,
+    "theme": "Dark",
     "theme_color": "#0078D4",
     "concurrent_downloads": 2,
     "concurrent_fragments": 4,

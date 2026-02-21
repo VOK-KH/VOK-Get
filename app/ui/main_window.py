@@ -1,5 +1,3 @@
-"""Main window: QFluentWidgets UI with download tools."""
-
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import FluentIcon, FluentWindow, NavigationItemPosition
 

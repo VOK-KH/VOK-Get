@@ -1,5 +1,8 @@
 {
   "download_path": "C:/Users/DEV/Videos/FOr001",
   "single_video_default": true,
-  "theme_color": "#0078D4"
+  "theme": "Dark",
+  "theme_color": "#0078D4",
+  "concurrent_downloads": 2,
+  "concurrent_fragments": 4
 }

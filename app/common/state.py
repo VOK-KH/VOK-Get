@@ -6,6 +6,16 @@ from pathlib import Path
 from app.config import load_settings
 from app.common.paths import DOWNLOADS_DIR
 
+
+def _format_size(bytes_: int) -> str:
+    """Return a human-readable file-size string (e.g. '4.2 MB')."""
+    n = float(bytes_)
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{int(n)} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} TB"
+
 _log_buffer: list[dict] = []
 _max_log_entries = 500
 
@@ -41,11 +51,12 @@ def get_recent_downloads(limit: int = 50) -> list[dict]:
     for f in path.iterdir():
         if f.is_file():
             try:
-                mtime = f.stat().st_mtime
+                stat = f.stat()
                 out.append({
                     "name": f.name,
                     "path": str(f),
-                    "date": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M"),
+                    "date": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    "size": _format_size(stat.st_size),
                 })
             except OSError:
                 continue

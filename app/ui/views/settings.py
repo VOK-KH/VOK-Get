@@ -1,25 +1,33 @@
-"""Settings view: data table and Save / Reset actions."""
+"""Settings view: Fluent UI setting cards."""
 
-from pathlib import Path
+from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import QFileDialog, QHBoxLayout
 
-from PyQt5.QtWidgets import (
-    QAbstractItemView,
-    QFileDialog,
-    QGroupBox,
-    QHeaderView,
-    QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
+from qfluentwidgets import (
+    ComboBox,
+    FluentIcon,
+    InfoBar,
+    InfoBarPosition,
+    LargeTitleLabel,
+    LineEdit,
+    PrimaryPushButton,
+    PushButton,
+    SettingCard,
+    SettingCardGroup,
+    SpinBox,
+    SwitchButton,
+    setTheme,
+    setThemeColor,
+    Theme,
 )
-from qfluentwidgets import BodyLabel, LargeTitleLabel, LineEdit, CheckBox, PushButton, PrimaryPushButton, SpinBox
 
 from app.common.paths import DOWNLOADS_DIR
 from app.common.state import add_log_entry
 from app.config import load_settings, save_settings
 
 from .base import BaseView
+
+_THEME_MAP = {"Auto": Theme.AUTO, "Light": Theme.LIGHT, "Dark": Theme.DARK}
 
 
 class SettingsView(BaseView):
@@ -30,84 +38,156 @@ class SettingsView(BaseView):
         title = LargeTitleLabel(self)
         title.setText("Settings")
         self._layout.addWidget(title)
-        body = BodyLabel(self)
-        body.setText("Application settings. Edit in the table and use Save or Reset.")
-        self._layout.addWidget(body)
+        self._layout.addSpacing(4)
 
-        # Settings table: Name | Value (we use delegates or embedded widgets for value)
-        card = QGroupBox("Settings data")
-        card_layout = QVBoxLayout(card)
-        self._table = QTableWidget()
-        self._table.setColumnCount(2)
-        self._table.setHorizontalHeaderLabels(["Setting", "Value"])
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setAlternatingRowColors(True)
-        self._table.setMinimumHeight(180)
-        card_layout.addWidget(self._table)
+        # ── Download group ────────────────────────────────────────────────
+        dl_group = SettingCardGroup("Download", self)
 
-        btn_layout = QHBoxLayout()
+        path_card = SettingCard(
+            FluentIcon.FOLDER,
+            "Download path",
+            "Folder where downloaded files are saved",
+        )
+        self._path_edit = LineEdit()
+        self._path_edit.setMinimumWidth(240)
+        self._path_edit.setPlaceholderText(str(DOWNLOADS_DIR))
+        browse_btn = PushButton("Browse…")
+        browse_btn.clicked.connect(self._browse_path)
+        path_card.hBoxLayout.addWidget(self._path_edit)
+        path_card.hBoxLayout.addWidget(browse_btn)
+        path_card.hBoxLayout.addSpacing(16)
+        dl_group.addSettingCard(path_card)
+
+        single_card = SettingCard(
+            FluentIcon.VIDEO,
+            "Single video only",
+            "Skip the playlist — download only the current video",
+        )
+        self._single_switch = SwitchButton()
+        single_card.hBoxLayout.addWidget(self._single_switch)
+        single_card.hBoxLayout.addSpacing(16)
+        dl_group.addSettingCard(single_card)
+
+        self._layout.addWidget(dl_group)
+
+        # ── Performance group ─────────────────────────────────────────────
+        perf_group = SettingCardGroup("Performance", self)
+
+        conc_card = SettingCard(
+            FluentIcon.DOWNLOAD,
+            "Concurrent downloads",
+            "Number of parallel download jobs (1 – 4)",
+        )
+        self._conc_spin = SpinBox()
+        self._conc_spin.setRange(1, 4)
+        self._conc_spin.setFixedWidth(80)
+        conc_card.hBoxLayout.addWidget(self._conc_spin)
+        conc_card.hBoxLayout.addSpacing(16)
+        perf_group.addSettingCard(conc_card)
+
+        frag_card = SettingCard(
+            FluentIcon.SPEED_HIGH,
+            "Concurrent fragments",
+            "Fragment threads per download job (1 – 16)",
+        )
+        self._frag_spin = SpinBox()
+        self._frag_spin.setRange(1, 16)
+        self._frag_spin.setFixedWidth(80)
+        frag_card.hBoxLayout.addWidget(self._frag_spin)
+        frag_card.hBoxLayout.addSpacing(16)
+        perf_group.addSettingCard(frag_card)
+
+        self._layout.addWidget(perf_group)
+
+        # ── Appearance group ──────────────────────────────────────────────
+        appear_group = SettingCardGroup("Appearance", self)
+
+        theme_card = SettingCard(
+            FluentIcon.BRUSH,
+            "Theme",
+            "Choose between automatic, light or dark mode",
+        )
+        self._theme_combo = ComboBox()
+        self._theme_combo.addItems(["Auto", "Light", "Dark"])
+        self._theme_combo.setFixedWidth(100)
+        theme_card.hBoxLayout.addWidget(self._theme_combo)
+        theme_card.hBoxLayout.addSpacing(16)
+        appear_group.addSettingCard(theme_card)
+
+        color_card = SettingCard(
+            FluentIcon.PALETTE,
+            "Accent color",
+            "Hex color used as the application accent (e.g. #0078D4)",
+        )
+        self._color_edit = LineEdit()
+        self._color_edit.setFixedWidth(120)
+        self._color_edit.setPlaceholderText("#0078D4")
+        color_card.hBoxLayout.addWidget(self._color_edit)
+        color_card.hBoxLayout.addSpacing(16)
+        appear_group.addSettingCard(color_card)
+
+        self._layout.addWidget(appear_group)
+
+        # ── Actions ───────────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
         self._save_btn = PrimaryPushButton("Save")
+        self._save_btn.setIcon(FluentIcon.SAVE)
         self._save_btn.clicked.connect(self._save)
         self._reset_btn = PushButton("Reset")
+        self._reset_btn.setIcon(FluentIcon.SYNC)
         self._reset_btn.clicked.connect(self._reset)
-        btn_layout.addWidget(self._save_btn)
-        btn_layout.addWidget(self._reset_btn)
-        btn_layout.addStretch()
-        card_layout.addLayout(btn_layout)
-        self._layout.addWidget(card)
+        btn_row.addWidget(self._save_btn)
+        btn_row.addWidget(self._reset_btn)
+        btn_row.addStretch(1)
+        self._layout.addSpacing(8)
+        self._layout.addLayout(btn_row)
+        self._layout.addStretch(1)
 
-        self._path_edit = None
-        self._single_video_cb = None
-        self._concurrent_downloads_spin = None
-        self._concurrent_fragments_spin = None
-        self._reset()
+        self._load_values()
+
+    # ── Helpers ───────────────────────────────────────────────────────────
+
+    def _load_values(self):
+        s = load_settings()
+        self._path_edit.setText(s.get("download_path", str(DOWNLOADS_DIR)))
+        self._single_switch.setChecked(s.get("single_video_default", True))
+        self._conc_spin.setValue(int(s.get("concurrent_downloads", 2)))
+        self._frag_spin.setValue(int(s.get("concurrent_fragments", 4)))
+        self._theme_combo.setCurrentText(s.get("theme", "Auto"))
+        self._color_edit.setText(s.get("theme_color", "#0078D4"))
 
     def _reset(self):
-        s = load_settings()
-        self._table.setRowCount(4)
-
-        self._table.setItem(0, 0, QTableWidgetItem("Download path"))
-        path_widget = QWidget()
-        path_layout = QHBoxLayout(path_widget)
-        path_layout.setContentsMargins(0, 0, 0, 0)
-        self._path_edit = LineEdit()
-        self._path_edit.setText(s.get("download_path", str(DOWNLOADS_DIR)))
-        self._path_edit.setPlaceholderText(str(DOWNLOADS_DIR))
-        browse_btn = PushButton("Browse...")
-        browse_btn.clicked.connect(self._browse_path)
-        path_layout.addWidget(self._path_edit)
-        path_layout.addWidget(browse_btn)
-        self._table.setCellWidget(0, 1, path_widget)
-
-        self._table.setItem(1, 0, QTableWidgetItem("Single video only (default)"))
-        self._single_video_cb = CheckBox()
-        self._single_video_cb.setChecked(s.get("single_video_default", True))
-        self._table.setCellWidget(1, 1, self._single_video_cb)
-
-        self._table.setItem(2, 0, QTableWidgetItem("Concurrent downloads (parallel jobs)"))
-        self._concurrent_downloads_spin = SpinBox()
-        self._concurrent_downloads_spin.setRange(1, 4)
-        self._concurrent_downloads_spin.setValue(int(s.get("concurrent_downloads", 2)))
-        self._table.setCellWidget(2, 1, self._concurrent_downloads_spin)
-
-        self._table.setItem(3, 0, QTableWidgetItem("Concurrent fragments per download"))
-        self._concurrent_fragments_spin = SpinBox()
-        self._concurrent_fragments_spin.setRange(1, 16)
-        self._concurrent_fragments_spin.setValue(int(s.get("concurrent_fragments", 4)))
-        self._table.setCellWidget(3, 1, self._concurrent_fragments_spin)
+        self._load_values()
 
     def _save(self):
         path = self._path_edit.text().strip() or str(DOWNLOADS_DIR)
-        single = self._single_video_cb.isChecked()
+        color_hex = self._color_edit.text().strip() or "#0078D4"
+        theme_name = self._theme_combo.currentText()
+
         s = load_settings()
         s["download_path"] = path
-        s["single_video_default"] = single
-        s["concurrent_downloads"] = self._concurrent_downloads_spin.value()
-        s["concurrent_fragments"] = self._concurrent_fragments_spin.value()
+        s["single_video_default"] = self._single_switch.isChecked()
+        s["concurrent_downloads"] = self._conc_spin.value()
+        s["concurrent_fragments"] = self._frag_spin.value()
+        s["theme"] = theme_name
+        s["theme_color"] = color_hex
         save_settings(s)
+
+        setTheme(_THEME_MAP.get(theme_name, Theme.AUTO))
+        try:
+            setThemeColor(QColor(color_hex))
+        except Exception:
+            pass
+
         add_log_entry("info", "Settings saved.")
+        InfoBar.success(
+            title="Saved",
+            content="Settings saved successfully.",
+            isClosable=True,
+            duration=2500,
+            position=InfoBarPosition.TOP_RIGHT,
+            parent=self,
+        )
 
     def _browse_path(self):
         start = self._path_edit.text() or str(DOWNLOADS_DIR)

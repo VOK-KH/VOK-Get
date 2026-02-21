@@ -3,10 +3,14 @@
 import sys
 
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QApplication
-from qfluentwidgets import setThemeColor
+from qfluentwidgets import Theme, setTheme, setThemeColor
 
+from app.config import load_settings
 from app.ui.main_window import MainWindow
+
+_THEME_MAP = {"Auto": Theme.AUTO, "Light": Theme.LIGHT, "Dark": Theme.DARK}
 
 
 def main() -> int:
@@ -21,7 +25,9 @@ def main() -> int:
     app.setApplicationName("VOK")
     app.setApplicationDisplayName("VOK - Video Downloader and Content Scraper")
 
-    setThemeColor("#0078D4")
+    s = load_settings()
+    setTheme(_THEME_MAP.get(s.get("theme", "Dark"), Theme.DARK))
+    setThemeColor(QColor(s.get("theme_color", "#0078D4")))
 
     window = MainWindow()
     window.show()
