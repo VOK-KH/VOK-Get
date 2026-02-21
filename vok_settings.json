@@ -1,8 +1,9 @@
 {
-  "download_path": "C:/Users/DEV/Videos/FOr001",
-  "single_video_default": true,
-  "theme": "Dark",
-  "theme_color": "#0078D4",
-  "concurrent_downloads": 2,
-  "concurrent_fragments": 4
+  "download_path": "/Users/vannya/Documents/video",
+  "single_video_default": false,
+  "theme": "Auto",
+  "theme_color": "#FF0000",
+  "concurrent_downloads": 1,
+  "concurrent_fragments": 4,
+  "cookies_file": ""
 }

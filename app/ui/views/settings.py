@@ -14,7 +14,6 @@ from qfluentwidgets import (
     PushButton,
     SettingCard,
     SettingCardGroup,
-    SpinBox,
     SwitchButton,
     setTheme,
     setThemeColor,
@@ -60,8 +59,8 @@ class SettingsView(BaseView):
 
         single_card = SettingCard(
             FluentIcon.VIDEO,
-            "Single video only",
-            "Skip the playlist — download only the current video",
+            "Single video only (no playlists)",
+            "Download only the current video; skip playlists when a single URL is used.",
         )
         self._single_switch = SwitchButton()
         single_card.hBoxLayout.addWidget(self._single_switch)
@@ -78,10 +77,10 @@ class SettingsView(BaseView):
             "Concurrent downloads",
             "Number of parallel download jobs (1 – 4)",
         )
-        self._conc_spin = SpinBox()
-        self._conc_spin.setRange(1, 4)
-        self._conc_spin.setFixedWidth(80)
-        conc_card.hBoxLayout.addWidget(self._conc_spin)
+        self._conc_combo = ComboBox()
+        self._conc_combo.addItems(["1", "2", "3", "4"])
+        self._conc_combo.setFixedWidth(80)
+        conc_card.hBoxLayout.addWidget(self._conc_combo)
         conc_card.hBoxLayout.addSpacing(16)
         perf_group.addSettingCard(conc_card)
 
@@ -90,10 +89,10 @@ class SettingsView(BaseView):
             "Concurrent fragments",
             "Fragment threads per download job (1 – 16)",
         )
-        self._frag_spin = SpinBox()
-        self._frag_spin.setRange(1, 16)
-        self._frag_spin.setFixedWidth(80)
-        frag_card.hBoxLayout.addWidget(self._frag_spin)
+        self._frag_combo = ComboBox()
+        self._frag_combo.addItems([str(i) for i in range(1, 17)])
+        self._frag_combo.setFixedWidth(80)
+        frag_card.hBoxLayout.addWidget(self._frag_combo)
         frag_card.hBoxLayout.addSpacing(16)
         perf_group.addSettingCard(frag_card)
 
@@ -173,8 +172,8 @@ class SettingsView(BaseView):
         s = load_settings()
         self._path_edit.setText(s.get("download_path", str(DOWNLOADS_DIR)))
         self._single_switch.setChecked(s.get("single_video_default", True))
-        self._conc_spin.setValue(int(s.get("concurrent_downloads", 2)))
-        self._frag_spin.setValue(int(s.get("concurrent_fragments", 4)))
+        self._conc_combo.setCurrentText(str(int(s.get("concurrent_downloads", 2))))
+        self._frag_combo.setCurrentText(str(int(s.get("concurrent_fragments", 4))))
         self._theme_combo.setCurrentText(s.get("theme", "Dark"))
         self._color_edit.setText(s.get("theme_color", "#0078D4"))
         self._cookies_edit.setText(s.get("cookies_file", ""))
@@ -190,8 +189,8 @@ class SettingsView(BaseView):
         s = load_settings()
         s["download_path"] = path
         s["single_video_default"] = self._single_switch.isChecked()
-        s["concurrent_downloads"] = self._conc_spin.value()
-        s["concurrent_fragments"] = self._frag_spin.value()
+        s["concurrent_downloads"] = int(self._conc_combo.currentText())
+        s["concurrent_fragments"] = int(self._frag_combo.currentText())
         s["theme"] = theme_name
         s["theme_color"] = color_hex
         s["cookies_file"] = self._cookies_edit.text().strip()

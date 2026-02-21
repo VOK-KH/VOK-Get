@@ -7,7 +7,6 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -30,7 +29,6 @@ from qfluentwidgets import (
     SubtitleLabel,
     SwitchButton,
     TableWidget,
-    TransparentPushButton,
 )
 
 from app.common.paths import DOWNLOADS_DIR
@@ -39,26 +37,11 @@ from app.config import load_settings
 from app.core.download import SUPPORTED_DOMAINS
 from app.core.manager import DownloadJob, DownloadManager
 from app.core.scraper import PlaylistFetchWorker, fmt_duration, fmt_date
-from app.ui.components import CardHeader, StatusTable
+from app.ui.components import CardHeader
 
 from .base import BaseView
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-
-_PLATFORM_CHIPS = [
-    ("YouTube",    "https://youtube.com/"),
-    ("TikTok",     "https://tiktok.com/"),
-    ("Douyin",     "https://www.douyin.com/video/"),
-    ("Kuaishou",   "https://www.kuaishou.com/"),
-    ("Instagram",  "https://instagram.com/"),
-    ("Facebook",   "https://facebook.com/"),
-    ("Pinterest",  "https://pinterest.com/"),
-    ("Twitter/X",  "https://x.com/"),
-    ("ok.ru",      "https://ok.ru/video/"),
-    ("VK",         "https://vk.com/video/"),
-    ("Twitch",     "https://twitch.tv/"),
-    ("Vimeo",      "https://vimeo.com/"),
-]
 
 _FORMATS = [
     "Best (video+audio)",
@@ -85,10 +68,11 @@ class DownloaderView(BaseView):
         self.setWindowTitle("Downloader")
 
         self._manager = DownloadManager(parent=self)
-        self._manager.log_line.connect(lambda _jid, msg: self._log_append(msg))
+        self._manager.log_line.connect(self._on_job_log)
         self._manager.progress.connect(self._on_progress)
         self._manager.job_finished.connect(self._on_job_finished)
         self._active_jobs: set[str] = set()
+        self._job_to_row: dict[str, int] = {}
         self._playlist_worker: PlaylistFetchWorker | None = None
 
         self._build_url_card()
@@ -110,7 +94,7 @@ class DownloaderView(BaseView):
         card = CardWidget(self)
         lay = QVBoxLayout(card)
         lay.setSpacing(10)
-        lay.addWidget(CardHeader(FluentIcon.LINK, "Video URL & output", card))
+        lay.addWidget(CardHeader(FluentIcon.LINK, "Video URL", card))
 
         url_row = QHBoxLayout()
         url_row.addWidget(BodyLabel("URL", card))
@@ -121,36 +105,6 @@ class DownloaderView(BaseView):
         self._url_edit.setClearButtonEnabled(True)
         url_row.addWidget(self._url_edit, 1)
         lay.addLayout(url_row)
-
-        chips_row = QHBoxLayout()
-        chips_row.setSpacing(4)
-        chips_row.addWidget(BodyLabel("Platforms:", card))
-        for label, hint_url in _PLATFORM_CHIPS:
-            btn = TransparentPushButton(label, card)
-            btn.setFixedHeight(24)
-            btn.clicked.connect(lambda _=False, u=hint_url: self._url_edit.setPlaceholderText(u))
-            chips_row.addWidget(btn)
-        chips_row.addStretch(1)
-        lay.addLayout(chips_row)
-
-        path_row = QHBoxLayout()
-        path_row.addWidget(BodyLabel("Output folder", card))
-        self._path_edit = LineEdit(card)
-        self._path_edit.setPlaceholderText(str(DOWNLOADS_DIR))
-        self._path_edit.setText(load_settings().get("download_path", str(DOWNLOADS_DIR)))
-        browse_btn = PushButton("Browse…", card)
-        browse_btn.clicked.connect(self._browse_output)
-        path_row.addWidget(self._path_edit, 1)
-        path_row.addWidget(browse_btn)
-        lay.addLayout(path_row)
-
-        mode_row = QHBoxLayout()
-        mode_row.addWidget(BodyLabel("Single video only (no playlist)", card))
-        self._single_switch = SwitchButton(card)
-        self._single_switch.setChecked(load_settings().get("single_video_default", True))
-        mode_row.addStretch(1)
-        mode_row.addWidget(self._single_switch)
-        lay.addLayout(mode_row)
 
         bulk_row = QHBoxLayout()
         bulk_row.addWidget(BodyLabel("Bulk mode (multiple URLs)", card))
@@ -280,14 +234,27 @@ class DownloaderView(BaseView):
         lay.setSpacing(10)
 
         hdr = QHBoxLayout()
-        hdr.addWidget(CardHeader(FluentIcon.HISTORY, "Download log", card))
+        hdr.addWidget(CardHeader(FluentIcon.HISTORY, "Download Table", card))
+        hdr.addStretch(1)
         clear_btn = PushButton("Clear", card)
         clear_btn.setIcon(FluentIcon.DELETE)
-        clear_btn.clicked.connect(lambda: self._process_table.setRowCount(0))
+        clear_btn.clicked.connect(self._clear_download_table)
         hdr.addWidget(clear_btn)
         lay.addLayout(hdr)
 
-        self._process_table = StatusTable(card)
+        self._process_table = TableWidget(card)
+        self._process_table.setColumnCount(4)
+        self._process_table.setHorizontalHeaderLabels(["Time", "Status", "Message", "Progress"])
+        hdr_view = self._process_table.horizontalHeader()
+        hdr_view.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hdr_view.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        hdr_view.setSectionResizeMode(2, QHeaderView.Stretch)
+        hdr_view.setSectionResizeMode(3, QHeaderView.Fixed)
+        self._process_table.setColumnWidth(3, 140)
+        self._process_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._process_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._process_table.setAlternatingRowColors(True)
+        self._process_table.verticalHeader().setVisible(False)
         self._process_table.setMinimumHeight(220)
         lay.addWidget(self._process_table)
         self._layout.addWidget(card)
@@ -355,7 +322,7 @@ class DownloaderView(BaseView):
     def _download_selected(self):
         s = load_settings()
         fmt = self._format_combo.currentText()
-        out = self._path_edit.text().strip() or str(DOWNLOADS_DIR)
+        out = s.get("download_path", str(DOWNLOADS_DIR))
         cookies = s.get("cookies_file", "")
         queued = 0
         for row in range(self._sel_table.rowCount()):
@@ -367,22 +334,39 @@ class DownloaderView(BaseView):
                     job = DownloadJob(url=url, output_dir=out, format_key=fmt,
                                       single_video=True, cookies_file=cookies)
                     self._active_jobs.add(job.job_id)
+                    self._add_download_row(job.job_id, entry.get("title", url))
                     self._manager.enqueue(job)
                     queued += 1
         if queued:
-            self._log_append(f"Queued {queued} selected item(s) for download.")
+            add_log_entry("info", f"Queued {queued} selected item(s) for download.")
             self._progress_indet.setVisible(True)
             self._progress.setVisible(False)
             self._update_controls()
 
-    # ── Helpers ───────────────────────────────────────────────────────────
+    # ── Download table helpers ─────────────────────────────────────────────
 
-    def _browse_output(self):
-        path = QFileDialog.getExistingDirectory(self, "Output folder", self._path_edit.text())
-        if path:
-            self._path_edit.setText(path)
+    def _add_download_row(self, job_id: str, message: str) -> None:
+        """Add a row for a new download job with a progress bar."""
+        row = self._process_table.rowCount()
+        self._process_table.insertRow(row)
+        time_str = datetime.now().strftime("%H:%M:%S")
+        self._process_table.setItem(row, 0, QTableWidgetItem(time_str))
+        self._process_table.setItem(row, 1, QTableWidgetItem("Downloading"))
+        self._process_table.setItem(row, 2, QTableWidgetItem(message[:200] or job_id[:200]))
+        bar = ProgressBar(self._process_table)
+        bar.setRange(0, 100)
+        bar.setValue(0)
+        bar.setFixedHeight(20)
+        bar.setFixedWidth(120)
+        self._process_table.setCellWidget(row, 3, bar)
+        self._job_to_row[job_id] = row
+        self._process_table.scrollToBottom()
 
-    def _log_append(self, text: str):
+    def _clear_download_table(self) -> None:
+        self._process_table.setRowCount(0)
+        self._job_to_row.clear()
+
+    def _on_job_log(self, job_id: str, text: str) -> None:
         clean = _strip_ansi(text.strip())
         if not clean:
             return
@@ -395,8 +379,27 @@ class DownloaderView(BaseView):
             status = "warning"
         else:
             status = "info"
-        time_str = datetime.now().strftime("%H:%M:%S")
-        self._process_table.append_row(time_str, status, clean)
+        add_log_entry(status, clean)
+        row = self._job_to_row.get(job_id)
+        if row is not None and row < self._process_table.rowCount():
+            msg_item = self._process_table.item(row, 2)
+            if msg_item:
+                msg_item.setText(clean[:500] if len(clean) > 500 else clean)
+
+    def _log_append(self, text: str) -> None:
+        """Append a generic log line (e.g. from playlist preview); no job row."""
+        clean = _strip_ansi(text.strip())
+        if not clean:
+            return
+        tl = clean.lower()
+        if tl.startswith("[error]") or "error:" in tl:
+            status = "error"
+        elif "[download]" in tl:
+            status = "download"
+        elif "[warning]" in tl:
+            status = "warning"
+        else:
+            status = "info"
         add_log_entry(status, clean)
 
     def _update_controls(self):
@@ -409,7 +412,7 @@ class DownloaderView(BaseView):
     def _start_download(self):
         s = load_settings()
         fmt = self._format_combo.currentText()
-        out = self._path_edit.text().strip() or str(DOWNLOADS_DIR)
+        out = s.get("download_path", str(DOWNLOADS_DIR))
         cookies = s.get("cookies_file", "")
 
         if self._bulk_switch.isChecked():
@@ -423,7 +426,7 @@ class DownloaderView(BaseView):
                 job = DownloadJob(url=url, output_dir=out, format_key=fmt,
                                   single_video=True, cookies_file=cookies)
                 self._active_jobs.add(job.job_id)
-                self._log_append(f"Queued: {url}")
+                self._add_download_row(job.job_id, url)
                 self._manager.enqueue(job)
         else:
             url = self._url_edit.text().strip()
@@ -434,18 +437,18 @@ class DownloaderView(BaseView):
                 url=url,
                 output_dir=out,
                 format_key=fmt,
-                single_video=self._single_switch.isChecked(),
+                single_video=s.get("single_video_default", True),
                 cookies_file=cookies,
             )
             self._active_jobs.add(job.job_id)
-            self._log_append(f"Queued: {url}")
+            self._add_download_row(job.job_id, url)
             self._manager.enqueue(job)
 
         self._progress_indet.setVisible(True)
         self._progress.setVisible(False)
         self._update_controls()
 
-    def _on_progress(self, job_id: str, value: float):
+    def _on_progress(self, job_id: str, value: float) -> None:
         self._progress_indet.setVisible(False)
         self._progress.setVisible(True)
         if value < 0:
@@ -453,14 +456,32 @@ class DownloaderView(BaseView):
         else:
             self._progress.setRange(0, 100)
             self._progress.setValue(int(value * 100))
+        row = self._job_to_row.get(job_id)
+        if row is not None and row < self._process_table.rowCount():
+            bar = self._process_table.cellWidget(row, 3)
+            if isinstance(bar, ProgressBar):
+                bar.setRange(0, 100)
+                bar.setValue(int(value * 100))
 
     def _stop_all(self):
         self._manager.cancel_all()
         self._log_append("Cancelling all active downloads…")
 
-    def _on_job_finished(self, job_id: str, success: bool, message: str):
+    def _on_job_finished(self, job_id: str, success: bool, message: str) -> None:
         self._active_jobs.discard(job_id)
-        self._log_append(message)
+        add_log_entry("info" if success else "error", message)
+        row = self._job_to_row.get(job_id)
+        if row is not None and row < self._process_table.rowCount():
+            status_item = self._process_table.item(row, 1)
+            if status_item:
+                status_item.setText("Done" if success else "Error")
+            msg_item = self._process_table.item(row, 2)
+            if msg_item:
+                msg_item.setText(message[:500] if len(message) > 500 else message)
+            bar = self._process_table.cellWidget(row, 3)
+            if isinstance(bar, ProgressBar):
+                bar.setRange(0, 100)
+                bar.setValue(100 if success else 0)
         if not self._active_jobs:
             self._progress_indet.setVisible(False)
             self._progress.setVisible(False)
