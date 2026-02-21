@@ -128,6 +128,28 @@ class SettingsView(BaseView):
 
         self._layout.addWidget(appear_group)
 
+        # ── Advanced group ────────────────────────────────────────────────
+        adv_group = SettingCardGroup("Advanced", self)
+
+        cookies_card = SettingCard(
+            FluentIcon.CERTIFICATE,
+            "Cookies file",
+            "Netscape cookies.txt for sites that require login "
+            "(ok.ru private, Instagram, etc.)",
+        )
+        self._cookies_edit = LineEdit()
+        self._cookies_edit.setMinimumWidth(240)
+        self._cookies_edit.setPlaceholderText("Path to cookies.txt (optional)")
+        self._cookies_edit.setClearButtonEnabled(True)
+        cookies_browse_btn = PushButton("Browse…")
+        cookies_browse_btn.clicked.connect(self._browse_cookies)
+        cookies_card.hBoxLayout.addWidget(self._cookies_edit)
+        cookies_card.hBoxLayout.addWidget(cookies_browse_btn)
+        cookies_card.hBoxLayout.addSpacing(16)
+        adv_group.addSettingCard(cookies_card)
+
+        self._layout.addWidget(adv_group)
+
         # ── Actions ───────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
         self._save_btn = PrimaryPushButton("Save")
@@ -153,8 +175,9 @@ class SettingsView(BaseView):
         self._single_switch.setChecked(s.get("single_video_default", True))
         self._conc_spin.setValue(int(s.get("concurrent_downloads", 2)))
         self._frag_spin.setValue(int(s.get("concurrent_fragments", 4)))
-        self._theme_combo.setCurrentText(s.get("theme", "Auto"))
+        self._theme_combo.setCurrentText(s.get("theme", "Dark"))
         self._color_edit.setText(s.get("theme_color", "#0078D4"))
+        self._cookies_edit.setText(s.get("cookies_file", ""))
 
     def _reset(self):
         self._load_values()
@@ -171,6 +194,7 @@ class SettingsView(BaseView):
         s["concurrent_fragments"] = self._frag_spin.value()
         s["theme"] = theme_name
         s["theme_color"] = color_hex
+        s["cookies_file"] = self._cookies_edit.text().strip()
         save_settings(s)
 
         setTheme(_THEME_MAP.get(theme_name, Theme.AUTO))
@@ -194,3 +218,13 @@ class SettingsView(BaseView):
         path = QFileDialog.getExistingDirectory(self, "Download folder", start)
         if path:
             self._path_edit.setText(path)
+
+    def _browse_cookies(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select cookies file",
+            "",
+            "Text files (*.txt);;All files (*)",
+        )
+        if path:
+            self._cookies_edit.setText(path)

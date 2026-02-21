@@ -15,6 +15,7 @@ _DEFAULTS = {
     "theme_color": "#0078D4",
     "concurrent_downloads": 2,
     "concurrent_fragments": 4,
+    "cookies_file": "",
 }
 
 

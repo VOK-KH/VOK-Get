@@ -1,6 +1,6 @@
 """Multi-thread download manager: queue and worker pool for parallel downloads."""
 
-from queue import Queue, Empty
+from queue import Empty, Queue
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -10,22 +10,39 @@ from app.core.download import DownloadWorker
 
 class DownloadJob:
     """One download request."""
-    __slots__ = ("url", "output_dir", "format_key", "single_video", "job_id")
 
-    def __init__(self, url: str, output_dir: str = "", format_key: str = "Best (video+audio)", single_video: bool = True, job_id: str | None = None):
+    __slots__ = ("url", "output_dir", "format_key", "single_video", "cookies_file", "job_id")
+
+    def __init__(
+        self,
+        url: str,
+        output_dir: str = "",
+        format_key: str = "Best (video+audio)",
+        single_video: bool = True,
+        cookies_file: str = "",
+        job_id: str | None = None,
+    ):
         self.url = url.strip()
         self.output_dir = output_dir
         self.format_key = format_key
         self.single_video = single_video
+        self.cookies_file = cookies_file or ""
         self.job_id = job_id or self.url[:80]
 
 
 class DownloadManager(QObject):
-    """Runs up to N DownloadWorkers in parallel. Queue extra jobs. Emits per-job log, progress, finished."""
+    """Runs up to N DownloadWorkers in parallel; queues extra jobs.
 
-    log_line = pyqtSignal(str, str)       # job_id, message
-    progress = pyqtSignal(str, float)     # job_id, 0.0..1.0
-    job_finished = pyqtSignal(str, bool, str)  # job_id, success, message
+    Signals
+    -------
+    log_line      (job_id, message)
+    progress      (job_id, 0.0..1.0)
+    job_finished  (job_id, success, message)
+    """
+
+    log_line = pyqtSignal(str, str)
+    progress = pyqtSignal(str, float)
+    job_finished = pyqtSignal(str, bool, str)
 
     def __init__(self, max_workers: int | None = None, parent=None):
         super().__init__(parent)
@@ -37,7 +54,7 @@ class DownloadManager(QObject):
         self._stop = False
 
     def enqueue(self, job: DownloadJob) -> None:
-        """Add a job; start immediately if a slot is free."""
+        """Add a job; start immediately if a worker slot is free."""
         if len(self._running) < self._max_workers:
             self._start_job(job)
         else:
@@ -50,6 +67,7 @@ class DownloadManager(QObject):
             job.format_key,
             single_video=job.single_video,
             concurrent_fragments=self._concurrent_fragments,
+            cookies_file=job.cookies_file,
             job_id=job.job_id,
         )
 

@@ -3,6 +3,7 @@
 import re
 from datetime import datetime
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -12,25 +13,39 @@ from qfluentwidgets import (
     BodyLabel,
     CardWidget,
     ComboBox,
-    ElevatedCardWidget,
     FluentIcon,
     IndeterminateProgressBar,
     LineEdit,
     ProgressBar,
     PrimaryPushButton,
     PushButton,
+    StrongBodyLabel,
     SwitchButton,
+    TransparentPushButton,
 )
 
 from app.common.paths import DOWNLOADS_DIR
 from app.common.state import add_log_entry
 from app.config import load_settings
+from app.core.download import SUPPORTED_DOMAINS
 from app.core.manager import DownloadJob, DownloadManager
 from app.ui.components import CardHeader, StatusTable
 
 from .base import BaseView
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+# Friendly names shown as clickable chips in the URL card
+_PLATFORM_CHIPS = [
+    ("YouTube",    "https://youtube.com/"),
+    ("ok.ru",      "https://ok.ru/video/"),
+    ("VK",         "https://vk.com/video/"),
+    ("Twitter/X",  "https://x.com/"),
+    ("TikTok",     "https://tiktok.com/"),
+    ("Instagram",  "https://instagram.com/"),
+    ("Twitch",     "https://twitch.tv/"),
+    ("Vimeo",      "https://vimeo.com/"),
+]
 
 
 def _strip_ansi(text: str) -> str:
@@ -51,7 +66,7 @@ class DownloaderView(BaseView):
         self._active_jobs: set[str] = set()
 
         # ── URL & output card ─────────────────────────────────────────────
-        url_card = ElevatedCardWidget(self)
+        url_card = CardWidget(self)
         url_layout = QVBoxLayout(url_card)
         url_layout.setSpacing(10)
         url_layout.addWidget(CardHeader(FluentIcon.LINK, "Video URL & output", url_card))
@@ -59,10 +74,24 @@ class DownloaderView(BaseView):
         url_row = QHBoxLayout()
         url_row.addWidget(BodyLabel("URL", url_card))
         self._url_edit = LineEdit(url_card)
-        self._url_edit.setPlaceholderText("https://…")
+        self._url_edit.setPlaceholderText(
+            "https://  —  YouTube, ok.ru, VK, Twitter/X, TikTok, Instagram, Vimeo …"
+        )
         self._url_edit.setClearButtonEnabled(True)
         url_row.addWidget(self._url_edit, 1)
         url_layout.addLayout(url_row)
+
+        # ── Supported-platform chips ──────────────────────────────────────
+        chips_row = QHBoxLayout()
+        chips_row.setSpacing(4)
+        chips_row.addWidget(BodyLabel("Supported:", url_card))
+        for label, hint_url in _PLATFORM_CHIPS:
+            btn = TransparentPushButton(label, url_card)
+            btn.setFixedHeight(24)
+            btn.clicked.connect(lambda checked=False, u=hint_url: self._url_edit.setPlaceholderText(u))
+            chips_row.addWidget(btn)
+        chips_row.addStretch(1)
+        url_layout.addLayout(chips_row)
 
         path_row = QHBoxLayout()
         path_row.addWidget(BodyLabel("Output folder", url_card))
@@ -157,11 +186,12 @@ class DownloaderView(BaseView):
         clean = _strip_ansi(text.strip())
         if not clean:
             return
-        if clean.lower().startswith("[error]") or "error:" in clean.lower():
+        tl = clean.lower()
+        if tl.startswith("[error]") or "error:" in tl:
             status = "error"
-        elif "[download]" in clean.lower():
+        elif "[download]" in tl:
             status = "download"
-        elif "[warning]" in clean.lower():
+        elif "[warning]" in tl:
             status = "warning"
         else:
             status = "info"
@@ -182,11 +212,13 @@ class DownloaderView(BaseView):
             self._log_append("Enter a URL first.")
             return
 
+        s = load_settings()
         job = DownloadJob(
             url=url,
             output_dir=self._path_edit.text().strip() or str(DOWNLOADS_DIR),
             format_key=self._format_combo.currentText(),
             single_video=self._single_switch.isChecked(),
+            cookies_file=s.get("cookies_file", ""),
         )
         self._active_jobs.add(job.job_id)
         self._log_append(f"Queued: {url}")
