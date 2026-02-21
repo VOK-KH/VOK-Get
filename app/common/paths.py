@@ -6,4 +6,5 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 APP_ROOT = PROJECT_ROOT / "app"
 RESOURCES_DIR = PROJECT_ROOT / "resources"
+ICONS_DIR = RESOURCES_DIR / "icons"
 DOWNLOADS_DIR = PROJECT_ROOT / "downloads"

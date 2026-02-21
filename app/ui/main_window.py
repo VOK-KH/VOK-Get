@@ -1,23 +1,38 @@
-"""Main window: download tools only."""
+"""Main window: QFluentWidgets UI with download tools."""
 
 from PyQt5.QtWidgets import QApplication
-from qfluentwidgets import FluentWindow
+from qfluentwidgets import FluentIcon, FluentWindow, NavigationItemPosition
 
 from app.common.paths import PROJECT_ROOT
 
-from .views import DownloaderView
+from .views import DashboardView, DownloaderView, LogsView, SettingsView
 
 APP_TITLE = "VOK — Download"
 
 
 class MainWindow(FluentWindow):
-    """Main window with download tools only (no sidebar)."""
+    """Fluent-style window with download tools."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.downloader = DownloaderView(self)
         self.initWindow()
-        self.setCentralWidget(self.downloader)
+
+        self.dashboard = DashboardView(self)
+        self.downloader = DownloaderView(self)
+        self.logs = LogsView(self)
+        self.settings = SettingsView(self)
+
+        self.addSubInterface(self.dashboard, FluentIcon.HOME, "Dashboard")
+        self.addSubInterface(self.downloader, FluentIcon.DOWNLOAD, "Download")
+        self.addSubInterface(self.logs, FluentIcon.FOLDER, "Logs")
+        self.navigationInterface.addSeparator()
+        self.addSubInterface(
+            self.settings,
+            FluentIcon.SETTING,
+            "Settings",
+            position=NavigationItemPosition.BOTTOM,
+        )
+        self.switchTo(self.downloader)
 
     def initWindow(self):
         """Initialize window size, title, and position."""
