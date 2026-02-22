@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.config import load_settings
-from app.common.paths import DOWNLOADS_DIR
+from app.common.paths import get_default_downloads_dir
 
 
 def _format_size(bytes_: int) -> str:
@@ -45,7 +45,7 @@ def clear_log_entries() -> None:
 def get_recent_downloads(limit: int = 50) -> list[dict]:
     """Scan downloads folder from config and return recent files."""
     out = []
-    path = Path(load_settings().get("download_path", str(DOWNLOADS_DIR)))
+    path = Path(load_settings().get("download_path", str(get_default_downloads_dir())))
     if not path.exists():
         return out
     for f in path.iterdir():

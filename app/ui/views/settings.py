@@ -20,9 +20,11 @@ from qfluentwidgets import (
     Theme,
 )
 
-from app.common.paths import DOWNLOADS_DIR
+from app.common.paths import get_default_downloads_dir
 from app.common.state import add_log_entry
 from app.config import load_settings, save_settings
+
+from app.ui.dialogs import UninstallDialog
 
 from .base import BaseView
 
@@ -49,7 +51,7 @@ class SettingsView(BaseView):
         )
         self._path_edit = LineEdit()
         self._path_edit.setMinimumWidth(240)
-        self._path_edit.setPlaceholderText(str(DOWNLOADS_DIR))
+        self._path_edit.setPlaceholderText(str(get_default_downloads_dir()))
         browse_btn = PushButton("Browse…")
         browse_btn.clicked.connect(self._browse_path)
         path_card.hBoxLayout.addWidget(self._path_edit)
@@ -149,6 +151,20 @@ class SettingsView(BaseView):
 
         self._layout.addWidget(adv_group)
 
+        # ── Uninstall ─────────────────────────────────────────────────────
+        uninstall_group = SettingCardGroup("Uninstall", self)
+        uninstall_card = SettingCard(
+            FluentIcon.DELETE,
+            "Remove app data",
+            "Open feedback page, then remove all settings and quit. Use before uninstalling the app.",
+        )
+        uninstall_btn = PushButton("Remove data & quit…")
+        uninstall_btn.clicked.connect(self._on_uninstall)
+        uninstall_card.hBoxLayout.addWidget(uninstall_btn)
+        uninstall_card.hBoxLayout.addSpacing(16)
+        uninstall_group.addSettingCard(uninstall_card)
+        self._layout.addWidget(uninstall_group)
+
         # ── Actions ───────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
         self._save_btn = PrimaryPushButton("Save")
@@ -170,7 +186,7 @@ class SettingsView(BaseView):
 
     def _load_values(self):
         s = load_settings()
-        self._path_edit.setText(s.get("download_path", str(DOWNLOADS_DIR)))
+        self._path_edit.setText(s.get("download_path", str(get_default_downloads_dir())))
         self._single_switch.setChecked(s.get("single_video_default", True))
         self._conc_combo.setCurrentText(str(int(s.get("concurrent_downloads", 2))))
         self._frag_combo.setCurrentText(str(int(s.get("concurrent_fragments", 4))))
@@ -182,7 +198,7 @@ class SettingsView(BaseView):
         self._load_values()
 
     def _save(self):
-        path = self._path_edit.text().strip() or str(DOWNLOADS_DIR)
+        path = self._path_edit.text().strip() or str(get_default_downloads_dir())
         color_hex = self._color_edit.text().strip() or "#0078D4"
         theme_name = self._theme_combo.currentText()
 
@@ -213,10 +229,14 @@ class SettingsView(BaseView):
         )
 
     def _browse_path(self):
-        start = self._path_edit.text() or str(DOWNLOADS_DIR)
+        start = self._path_edit.text() or str(get_default_downloads_dir())
         path = QFileDialog.getExistingDirectory(self, "Download folder", start)
         if path:
             self._path_edit.setText(path)
+
+    def _on_uninstall(self):
+        dlg = UninstallDialog(self)
+        dlg.exec_()
 
     def _browse_cookies(self):
         path, _ = QFileDialog.getOpenFileName(

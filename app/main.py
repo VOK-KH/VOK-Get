@@ -7,7 +7,8 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import Theme, setTheme, setThemeColor
 
-from app.config import load_settings
+from app.config import is_first_run, load_settings
+from app.ui.dialogs import SetupWizardDialog
 from app.ui.main_window import MainWindow
 
 _THEME_MAP = {"Auto": Theme.AUTO, "Light": Theme.LIGHT, "Dark": Theme.DARK}
@@ -28,6 +29,13 @@ def main() -> int:
     s = load_settings()
     setTheme(_THEME_MAP.get(s.get("theme", "Dark"), Theme.DARK))
     setThemeColor(QColor(s.get("theme_color", "#0078D4")))
+
+    if is_first_run():
+        setup = SetupWizardDialog()
+        setup.exec_()
+        s = load_settings()
+        setTheme(_THEME_MAP.get(s.get("theme", "Dark"), Theme.DARK))
+        setThemeColor(QColor(s.get("theme_color", "#0078D4")))
 
     window = MainWindow()
     window.show()

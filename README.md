@@ -71,6 +71,31 @@ python run.py
 
 ---
 
+## Building for distribution
+
+Standalone executables can be built with PyInstaller. **Build on macOS for a Mac app; build on Windows for a Windows .exe.**
+
+1. Install dev dependencies (includes PyInstaller):
+   ```bash
+   uv sync --extra dev
+   ```
+
+2. **macOS** — from project root:
+   ```bash
+   ./scripts/build_mac.sh
+   ```
+   Output: `dist/VOK.app`
+
+3. **Windows** — from project root:
+   ```bat
+   scripts\build_win.bat
+   ```
+   Output: `dist\VOK\VOK.exe` (distribute the entire `dist\VOK` folder).
+
+Users still need **FFmpeg** installed for audio/video merging.
+
+---
+
 ## Project Structure
 
 ```

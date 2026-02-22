@@ -31,7 +31,7 @@ from qfluentwidgets import (
     TableWidget,
 )
 
-from app.common.paths import DOWNLOADS_DIR
+from app.common.paths import get_default_downloads_dir
 from app.common.state import add_log_entry
 from app.config import load_settings
 from app.core.download import SUPPORTED_DOMAINS
@@ -322,7 +322,7 @@ class DownloaderView(BaseView):
     def _download_selected(self):
         s = load_settings()
         fmt = self._format_combo.currentText()
-        out = s.get("download_path", str(DOWNLOADS_DIR))
+        out = s.get("download_path", str(get_default_downloads_dir()))
         cookies = s.get("cookies_file", "")
         queued = 0
         for row in range(self._sel_table.rowCount()):
@@ -412,7 +412,7 @@ class DownloaderView(BaseView):
     def _start_download(self):
         s = load_settings()
         fmt = self._format_combo.currentText()
-        out = s.get("download_path", str(DOWNLOADS_DIR))
+        out = s.get("download_path", str(get_default_downloads_dir()))
         cookies = s.get("cookies_file", "")
 
         if self._bulk_switch.isChecked():
