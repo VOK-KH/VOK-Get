@@ -37,12 +37,12 @@ class DownloadManager(QObject):
     -------
     log_line      (job_id, message)
     progress      (job_id, 0.0..1.0)
-    job_finished  (job_id, success, message)
+    job_finished  (job_id, success, message, filepath, size_bytes)
     """
 
     log_line = pyqtSignal(str, str)
     progress = pyqtSignal(str, float)
-    job_finished = pyqtSignal(str, bool, str)
+    job_finished = pyqtSignal(str, bool, str, str, int)
 
     def __init__(self, max_workers: int | None = None, parent=None):
         super().__init__(parent)
@@ -77,8 +77,8 @@ class DownloadManager(QObject):
         def on_progress(v: float):
             self.progress.emit(job.job_id, v)
 
-        def on_finished(success: bool, message: str):
-            self.job_finished.emit(job.job_id, success, message)
+        def on_finished(success: bool, message: str, filepath: str, size_bytes: int):
+            self.job_finished.emit(job.job_id, success, message, filepath, size_bytes)
             self._running.pop(job.job_id, None)
             self._start_next()
 
@@ -103,7 +103,14 @@ class DownloadManager(QObject):
             w.cancel()
 
     def cancel_all(self) -> None:
+        """Cancel all running jobs and clear the queue so no further jobs start."""
         self._stop = True
+        # Drain queue so no new jobs start after we cancel running ones
+        while True:
+            try:
+                self._queue.get_nowait()
+            except Empty:
+                break
         for w in list(self._running.values()):
             w.cancel()
         self._stop = False
