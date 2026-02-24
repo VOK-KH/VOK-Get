@@ -30,7 +30,7 @@ from .base import BaseView
 # ---------------------------------------------------------------------------
 
 SECTION_SPACING   = 20
-CARD_PADDING      = 16
+CARD_PADDING      = 22
 FEATURE_ICON_SIZE = 32
 GRID_SPACING      = 14
 
@@ -87,7 +87,6 @@ class DashboardView(BaseView):
             )
 
         self._layout.addLayout(grid)
-        self._layout.addSpacing(SECTION_SPACING)
 
     def _make_feature_card(self, title, desc, icon):
         """Build a single feature card with icon, title, and description."""

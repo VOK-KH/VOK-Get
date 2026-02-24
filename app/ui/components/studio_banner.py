@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from PyQt5.QtCore import QPoint, QRect, QRectF, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPixmap
+from PyQt5.QtWidgets import (
+    QGraphicsBlurEffect,
+    QGraphicsScene,
+    QHBoxLayout,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import (
     CaptionLabel,
     FluentIcon,
@@ -17,9 +24,11 @@ class FeatureTile(QWidget):
 
     clicked = pyqtSignal()
 
-    _NORMAL_BG  = "transparent"
-    _HOVER_BG   = "rgba(255,255,255,0.10)"
-    _PRESSED_BG = "rgba(255,255,255,0.06)"
+    # hover/press overlay alphas (painted, not stylesheet)
+    _OVERLAY_NORMAL  = 18
+    _OVERLAY_HOVER   = 45
+    _OVERLAY_PRESSED = 8
+    _BLUR_RADIUS     = 20
 
     def __init__(
         self,
@@ -31,8 +40,10 @@ class FeatureTile(QWidget):
         super().__init__(parent)
         self.setFixedSize(168, 148)
         self.setCursor(Qt.PointingHandCursor)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self._overlay_alpha = self._OVERLAY_NORMAL
+        self._bg_cache: QPixmap | None = None
         self._build(icon, title, subtitle)
-        self._set_bg(self._NORMAL_BG)
 
     # ── layout ────────────────────────────────────────────────────────────────
 
@@ -80,31 +91,79 @@ class FeatureTile(QWidget):
 
         root.addStretch(1)
 
-    # ── style helpers ─────────────────────────────────────────────────────────
+    # ── background blur ──────────────────────────────────────────────────────
 
-    def _set_bg(self, color: str):
-        self.setStyleSheet(
-            f"FeatureTile {{ background: {color}; border-radius: 8px; }}"
-        )
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Defer the grab so the parent has fully painted before we sample it.
+        QTimer.singleShot(0, self._cache_background)
+
+    def _cache_background(self):
+        """Grab and blur the parent region once; called deferred after show."""
+        if not self.parent() or not self.isVisible():
+            return
+        pos = self.mapTo(self.parent(), QPoint(0, 0))
+        raw = self.parent().grab(QRect(pos, self.size()))
+        self._bg_cache = self._blur_pixmap(raw, self._BLUR_RADIUS)
+        self.update()
+    @staticmethod
+    def _blur_pixmap(pixmap: QPixmap, radius: int) -> QPixmap:
+        """Return a blurred copy of *pixmap* using QGraphicsBlurEffect."""
+        scene = QGraphicsScene()
+        item = scene.addPixmap(pixmap)
+        effect = QGraphicsBlurEffect()
+        effect.setBlurRadius(radius)
+        effect.setBlurHints(QGraphicsBlurEffect.QualityHint)
+        item.setGraphicsEffect(effect)
+
+        result = QPixmap(pixmap.size())
+        result.fill(Qt.transparent)
+        p = QPainter(result)
+        scene.render(p, source=QRectF(item.boundingRect()))
+        p.end()
+        return result
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(self.rect()), 10, 10)
+        painter.setClipPath(path)
+
+        # Draw cached blurred background (never call grab() here)
+        if self._bg_cache:
+            painter.drawPixmap(0, 0, self._bg_cache)
+
+        # Semi-transparent state overlay
+        painter.fillPath(path, QColor(255, 255, 255, self._overlay_alpha))
+
+        painter.end()
+
+    # ── style helpers ──────────────────────────────────────────────────────
+
+    def _set_overlay(self, alpha: int):
+        self._overlay_alpha = alpha
+        self.update()
 
     # ── mouse events ──────────────────────────────────────────────────────────
 
     def enterEvent(self, event):
-        self._set_bg(self._HOVER_BG)
+        self._set_overlay(self._OVERLAY_HOVER)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self._set_bg(self._NORMAL_BG)
+        self._set_overlay(self._OVERLAY_NORMAL)
         super().leaveEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self._set_bg(self._PRESSED_BG)
+            self._set_overlay(self._OVERLAY_PRESSED)
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self._set_bg(self._HOVER_BG if self.underMouse() else self._NORMAL_BG)
+            self._set_overlay(self._OVERLAY_HOVER if self.underMouse() else self._OVERLAY_NORMAL)
             if self.rect().contains(event.pos()):
                 self.clicked.emit()
         super().mouseReleaseEvent(event)

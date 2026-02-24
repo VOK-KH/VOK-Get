@@ -15,14 +15,7 @@ from app.ui.components.studio_banner import FeatureTile
 
 
 class HomeBanner(QWidget):
-    """Hero banner for the Dashboard view.
-
-    Signals
-    -------
-    open_downloader_requested : "Download" tile clicked
-    open_logs_requested       : "Logs" tile clicked
-    open_settings_requested   : "Settings" tile clicked
-    """
+    """Hero banner for the Dashboard view."""
 
     open_downloader_requested = pyqtSignal()
     open_logs_requested       = pyqtSignal()
@@ -31,7 +24,7 @@ class HomeBanner(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(260)
+        self.setFixedHeight(290)
         self._setup_content()
 
     # ── build ─────────────────────────────────────────────────────────────────
@@ -39,7 +32,6 @@ class HomeBanner(QWidget):
     def _setup_content(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(36, 32, 36, 28)
-        root.setSpacing(0)
 
         # title + subtitle
         title = TitleLabel("VOK Downloader", self)
@@ -58,7 +50,7 @@ class HomeBanner(QWidget):
         # quick-nav tiles
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(12)
-        tiles_row.setContentsMargins(0, 20, 0, 0)
+        tiles_row.setContentsMargins(0, 20, 20, 20)
 
         tile_download = FeatureTile(
             FluentIcon.DOWNLOAD, "Download", "Paste a URL and start", self
