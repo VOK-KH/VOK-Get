@@ -50,27 +50,27 @@ set "VERSION=%VERSION:"=%"
 echo Version: %VERSION%
 
 REM ── Locate ISCC.exe (Inno Setup compiler) ────────────────────────────────────
+REM Avoid ( ) blocks with paths containing (x86) or text containing "install" to prevent parse errors.
 set "ISCC="
-if defined ISCC_PATH (
-    set "ISCC=%ISCC_PATH%"
-) else (
-    if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-    if exist "C:\Program Files\Inno Setup 6\ISCC.exe"       set "ISCC=C:\Program Files\Inno Setup 6\ISCC.exe"
-    if exist "C:\Program Files (x86)\Inno Setup 5\ISCC.exe" set "ISCC=C:\Program Files (x86)\Inno Setup 5\ISCC.exe"
-    if exist "C:\Program Files\Inno Setup 5\ISCC.exe"       set "ISCC=C:\Program Files\Inno Setup 5\ISCC.exe"
-)
+if defined ISCC_PATH set "ISCC=%ISCC_PATH%"
+if "%ISCC%"=="" if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if "%ISCC%"=="" if exist "C:\Program Files\Inno Setup 6\ISCC.exe" set "ISCC=C:\Program Files\Inno Setup 6\ISCC.exe"
+if "%ISCC%"=="" if exist "C:\Program Files (x86)\Inno Setup 5\ISCC.exe" set "ISCC=C:\Program Files (x86)\Inno Setup 5\ISCC.exe"
+if "%ISCC%"=="" if exist "C:\Program Files\Inno Setup 5\ISCC.exe" set "ISCC=C:\Program Files\Inno Setup 5\ISCC.exe"
 
-if "%ISCC%"=="" (
-    echo.
-     echo WARNING: Inno Setup not found -- skipping installer step.
-    echo   Application built successfully: dist\VOK\VOK.exe
-    echo   To create the full installer (.exe), install Inno Setup from:
-    echo     https://jrsoftware.org/isinfo.php
-    echo   Or set ISCC_PATH to the full path of ISCC.exe and re-run this script.
-    echo.
-    goto :build_done
-)
+if "%ISCC%"=="" goto :no_iscc
 echo Using Inno Setup: %ISCC%
+goto :after_iscc_check
+:no_iscc
+echo.
+echo WARNING: Inno Setup not found - skipping installer step.
+echo   Application built successfully: dist\VOK\VOK.exe
+echo   To create the full installer, get Inno Setup from:
+echo     https://jrsoftware.org/isinfo.php
+echo   Or set ISCC_PATH to the full path of ISCC.exe and re-run this script.
+echo.
+goto :build_done
+:after_iscc_check
 
 REM ── Generate Inno Setup script (.iss) ────────────────────────────────────────
 REM Use absolute paths so Inno Setup resolves files from the project root,
