@@ -32,7 +32,13 @@ _DEFAULTS = {
     "concurrent_downloads": 2,
     "concurrent_fragments": 4,
     "cookies_file": "",
+    "default_start_page": "Download",
 }
+
+
+def get_default_settings() -> dict:
+    """Return a copy of default settings (for reset-to-defaults)."""
+    return _DEFAULTS.copy()
 
 
 def load_settings() -> dict:

@@ -3,7 +3,7 @@
 import app
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QFileDialog, QHBoxLayout, QMessageBox
+from PyQt5.QtWidgets import QColorDialog, QFileDialog, QHBoxLayout, QMessageBox
 
 from qfluentwidgets import (
     ComboBox,
@@ -14,18 +14,18 @@ from qfluentwidgets import (
     LineEdit,
     PrimaryPushButton,
     PushButton,
+    SegmentedWidget,
     SettingCard,
     SettingCardGroup,
     SwitchButton,
     setTheme,
     setThemeColor,
     Theme,
-    ColorDialog
 )
 
 from app.common.paths import get_default_downloads_dir
 from app.common.state import add_log_entry
-from app.config import load_settings, save_settings
+from app.config import get_default_settings, load_settings, save_settings
 from app.core.updater import check_update, download_update, install_update
 from app.ui.theme import apply_app_palette
 
@@ -100,6 +100,19 @@ class SettingsView(BaseView):
         single_card.hBoxLayout.addWidget(self._single_switch)
         single_card.hBoxLayout.addSpacing(16)
         dl_group.addSettingCard(single_card)
+
+        mode_card = SettingCard(
+            FluentIcon.DOWNLOAD,
+            "Download mode",
+            "Normal or enhanced download.",
+        )
+        self._mode_segmented = SegmentedWidget()
+        self._mode_segmented.insertItem(0, "normal", "Normal", None)
+        self._mode_segmented.insertItem(1, "enhance", "Enhance", self._on_enhance_mode_clicked)
+        self._mode_segmented.setCurrentItem("normal")
+        mode_card.hBoxLayout.addWidget(self._mode_segmented)
+        mode_card.hBoxLayout.addSpacing(16)
+        dl_group.addSettingCard(mode_card)
 
         self._layout.addWidget(dl_group)
 
@@ -223,18 +236,33 @@ class SettingsView(BaseView):
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
-    def _load_values(self):
-        s = load_settings()
+    def _apply_settings_to_ui(self, s: dict) -> None:
+        """Populate UI widgets from a settings dict (from load_settings or get_default_settings)."""
         self._path_edit.setText(s.get("download_path", str(get_default_downloads_dir())))
         self._single_switch.setChecked(s.get("single_video_default", True))
         self._conc_combo.setCurrentText(str(int(s.get("concurrent_downloads", 2))))
         self._frag_combo.setCurrentText(str(int(s.get("concurrent_fragments", 4))))
-        self._theme_combo.setCurrentText(s.get("theme", "Dark"))
+        theme = s.get("theme", "Dark")
+        if theme not in ("Auto", "Light", "Dark"):
+            theme = "Dark"
+        self._theme_combo.setCurrentText(theme)
         self._color_edit.setText(s.get("theme_color", "#0078D4"))
         self._cookies_edit.setText(s.get("cookies_file", ""))
 
-    def _reset(self):
-        self._load_values()
+    def _load_values(self) -> None:
+        self._apply_settings_to_ui(load_settings())
+
+    def _reset(self) -> None:
+        """Reset form to default settings and show feedback."""
+        self._apply_settings_to_ui(get_default_settings())
+        InfoBar.success(
+            title="Reset",
+            content="Settings form reset to defaults. Click Save to apply.",
+            isClosable=True,
+            duration=2500,
+            position=InfoBarPosition.TOP_RIGHT,
+            parent=self,
+        )
 
     def _save(self):
         path = self._path_edit.text().strip() or str(get_default_downloads_dir())
@@ -264,6 +292,17 @@ class SettingsView(BaseView):
             content="Settings saved successfully.",
             isClosable=True,
             duration=2500,
+            position=InfoBarPosition.TOP_RIGHT,
+            parent=self,
+        )
+
+    def _on_enhance_mode_clicked(self):
+        """Show 'Coming soon!' when user selects Enhance download mode."""
+        InfoBar.info(
+            title="Enhance",
+            content="Coming soon!",
+            isClosable=True,
+            duration=3000,
             position=InfoBarPosition.TOP_RIGHT,
             parent=self,
         )
@@ -343,17 +382,12 @@ class SettingsView(BaseView):
         )
 
     def _pick_accent_color(self):
-        """Open ColorDialog and set accent color hex to the line edit."""
-        raw = self._color_edit.text().strip() or "#0078D4"
+        """Open Qt5 color dialog and set accent color hex to the line edit."""
+        default_hex = "#0078D4"
+        raw = self._color_edit.text().strip() or default_hex
         initial = QColor(raw)
         if not initial.isValid():
-            initial = QColor("#0078D4")
-        dialog = ColorDialog(initial, "Accent color", self)
-        if dialog.exec_():
-            color = None
-            if hasattr(dialog, "getColor"):
-                color = dialog.getColor()
-            elif hasattr(dialog, "color"):
-                color = dialog.color() if callable(dialog.color) else dialog.color
-            if isinstance(color, QColor) and color.isValid():
-                self._color_edit.setText(color.name())
+            initial = QColor(default_hex)
+        color = QColorDialog.getColor(initial, self, "Accent color")
+        if color.isValid():
+            self._color_edit.setText(color.name())

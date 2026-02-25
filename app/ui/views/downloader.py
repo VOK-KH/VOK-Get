@@ -31,6 +31,7 @@ from qfluentwidgets import (
     PushButton,
     RoundMenu,
     SwitchButton,
+    SegmentedWidget,
     TableWidget,
 )
 
@@ -40,7 +41,7 @@ from app.config import load_settings
 from app.core.download import detect_platform
 from app.core.manager import DownloadJob, DownloadManager
 from app.core.scraper import PlaylistFetchWorker, fmt_duration, fmt_date
-from app.ui.components import CardHeader, DownloadTableCard
+from app.ui.components import CardHeader, DownloadPathPanel, DownloadTableCard
 from app.ui.helpers import DOWNLOAD_FORMATS, host_icon
 from app.ui.utils import format_size, strip_ansi
 
@@ -75,20 +76,31 @@ class DownloaderView(BaseView):
         self._progress_timer.timeout.connect(self._flush_progress_ui)
         self._progress_flush_pending = False
 
+        self._build_mode_bar()
         self._build_url_card()
         self._build_bulk_card()
         self._build_selective_card()
+        self._build_path_panel()
         self._build_format_card()
         self._build_progress()
         self._build_log_card()
 
         self._layout.addStretch(1)
 
-        # Start with bulk / selective hidden
+        # Start with Single mode: only URL card visible
         self._bulk_card.setVisible(False)
         self._selective_card.setVisible(False)
 
     # ── Card builders ─────────────────────────────────────────────────────
+
+    def _build_mode_bar(self):
+        """Top segmented bar: Single | Bulk | Selective."""
+        self._mode_segmented = SegmentedWidget(self)
+        self._mode_segmented.insertItem(0, "single", "Single", self._on_download_mode_changed)
+        self._mode_segmented.insertItem(1, "bulk", "Bulk", self._on_download_mode_changed)
+        self._mode_segmented.insertItem(2, "selective", "Selective", self._on_download_mode_changed)
+        self._mode_segmented.setCurrentItem("single")
+        self._layout.addWidget(self._mode_segmented)
 
     def _build_url_card(self):
         card = CardWidget(self)
@@ -106,25 +118,12 @@ class DownloaderView(BaseView):
         url_row.addWidget(self._url_edit, 1)
         lay.addLayout(url_row)
 
-        bulk_row = QHBoxLayout()
-        bulk_row.addWidget(BodyLabel("Bulk mode (multiple URLs)", card))
-        self._bulk_switch = SwitchButton(card)
-        self._bulk_switch.setChecked(False)
-        self._bulk_switch.checkedChanged.connect(self._on_bulk_toggled)
-        bulk_row.addStretch(1)
-        bulk_row.addWidget(self._bulk_switch)
-        lay.addLayout(bulk_row)
-
-        sel_row = QHBoxLayout()
-        sel_row.addWidget(BodyLabel("Selective download (preview playlist)", card))
-        self._selective_switch = SwitchButton(card)
-        self._selective_switch.setChecked(False)
-        self._selective_switch.checkedChanged.connect(self._on_selective_toggled)
-        sel_row.addStretch(1)
-        sel_row.addWidget(self._selective_switch)
-        lay.addLayout(sel_row)
-
         self._layout.addWidget(card)
+
+    def _build_path_panel(self):
+        """Path panel component: current download folder + Open folder."""
+        self._path_panel = DownloadPathPanel(self)
+        self._layout.addWidget(self._path_panel)
 
     def _build_bulk_card(self):
         self._bulk_card = CardWidget(self)
@@ -232,17 +231,18 @@ class DownloaderView(BaseView):
         self._process_table.customContextMenuRequested.connect(self._on_process_table_context_menu)
         self._layout.addWidget(card)
 
-    # ── Mode toggles ──────────────────────────────────────────────────────
+    def showEvent(self, event):
+        """Refresh path panel when view is shown (e.g. after returning from Settings)."""
+        super().showEvent(event)
+        if hasattr(self, "_path_panel"):
+            self._path_panel.refresh_path()
 
-    def _on_bulk_toggled(self, checked: bool):
-        self._bulk_card.setVisible(checked)
-        if checked:
-            self._selective_switch.setChecked(False)
+    # ── Mode switch (segmented) ──────────────────────────────────────────
 
-    def _on_selective_toggled(self, checked: bool):
-        self._selective_card.setVisible(checked)
-        if checked:
-            self._bulk_switch.setChecked(False)
+    def _on_download_mode_changed(self):
+        key = self._mode_segmented.currentRouteKey()
+        self._bulk_card.setVisible(key == "bulk")
+        self._selective_card.setVisible(key == "selective")
 
     # ── Selective download helpers ─────────────────────────────────────────
 
@@ -597,8 +597,7 @@ class DownloaderView(BaseView):
     def _set_profile_extract_controls(self, enabled: bool) -> None:
         """Enable/disable URL and mode controls during profile extract phase."""
         self._url_edit.setEnabled(enabled)
-        self._bulk_switch.setEnabled(enabled)
-        self._selective_switch.setEnabled(enabled)
+        self._mode_segmented.setEnabled(enabled)
         self._format_combo.setEnabled(enabled)
 
     def _update_controls(self):
@@ -616,7 +615,7 @@ class DownloaderView(BaseView):
         out = s.get("download_path", str(get_default_downloads_dir()))
         cookies = s.get("cookies_file", "")
 
-        if self._bulk_switch.isChecked():
+        if self._mode_segmented.currentRouteKey() == "bulk":
             # Bulk mode: dedupe, cap size, batch-add rows then enqueue
             text = self._bulk_edit.toPlainText()
             raw = [ln.strip() for ln in text.splitlines() if ln.strip()]

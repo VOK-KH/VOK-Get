@@ -3,6 +3,7 @@ from qfluentwidgets import FluentIcon, FluentWindow, NavigationItemPosition
 
 import app
 from app.common.paths import PROJECT_ROOT
+from app.config import load_settings
 
 from .views import DashboardView, DownloaderView, LogsView, SettingsView, VokStudioView
 
@@ -31,7 +32,14 @@ class MainWindow(FluentWindow):
             "Settings",
             position=NavigationItemPosition.BOTTOM,
         )
-        self.switchTo(self.downloader)
+
+        default_page = load_settings().get("default_start_page", "Download")
+        if default_page == "Dashboard":
+            self.switchTo(self.dashboard)
+        elif default_page == "Settings":
+            self.switchTo(self.settings)
+        else:
+            self.switchTo(self.downloader)
 
     def initWindow(self):
         """Initialize window size, title, and position."""

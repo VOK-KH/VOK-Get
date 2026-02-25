@@ -6,6 +6,7 @@ from .card_header import CardHeader
 from .dashboard_feature_card import DashboardFeatureCard
 from .dashboard_feature_grid import DashboardFeatureGrid
 from .dashboard_instructions_card import DashboardInstructionsCard
+from .download_path_panel import DownloadPathPanel
 from .download_table_card import DownloadTableCard
 from .status_table import StatusTable
 
@@ -14,6 +15,7 @@ __all__ = [
     "DashboardFeatureCard",
     "DashboardFeatureGrid",
     "DashboardInstructionsCard",
+    "DownloadPathPanel",
     "DownloadTableCard",
     "StatusTable",
 ]
