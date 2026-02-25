@@ -36,6 +36,7 @@ from qfluentwidgets import (
 )
 
 from app.common.paths import get_default_downloads_dir
+from app.common.sound import play_download_sound
 from app.common.state import add_log_entry
 from app.config import load_settings
 from app.core.download import detect_platform
@@ -53,6 +54,13 @@ MAX_PLAYLIST_DISPLAY = 1500
 PROGRESS_THROTTLE_MS = 120
 # Skip per-row log text updates when job count exceeds this (avoids UI flood)
 LOG_TABLE_UPDATE_MAX_JOBS = 80
+
+URL_PLACEHOLDER_SINGLE = (
+    "https://  —  YouTube, TikTok, Douyin, Kuaishou, Instagram, Facebook, Pinterest, Twitter/X …"
+)
+URL_PLACEHOLDER_SELECTIVE = (
+    "https://  —  Playlist or channel URL (preview to select which videos to download) …"
+)
 
 
 class DownloaderView(BaseView):
@@ -114,9 +122,7 @@ class DownloaderView(BaseView):
         url_row = QHBoxLayout()
         url_row.addWidget(BodyLabel("URL", self._url_card))
         self._url_edit = LineEdit(self._url_card)
-        self._url_edit.setPlaceholderText(
-            "https://  —  YouTube, TikTok, Douyin, Kuaishou, Instagram, Facebook, Pinterest, Twitter/X …"
-        )
+        self._url_edit.setPlaceholderText(URL_PLACEHOLDER_SINGLE)
         self._url_edit.setClearButtonEnabled(True)
         url_row.addWidget(self._url_edit, 1)
         lay.addLayout(url_row)
@@ -261,6 +267,11 @@ class DownloaderView(BaseView):
         self._bulk_card.setVisible(key == "bulk")
         self._selective_card.setVisible(key == "selective")
         self._enhance_card.setVisible(is_enhance)
+        # Update URL placeholder: Selective mode = playlist/channel hint
+        if key == "selective":
+            self._url_edit.setPlaceholderText(URL_PLACEHOLDER_SELECTIVE)
+        else:
+            self._url_edit.setPlaceholderText(URL_PLACEHOLDER_SINGLE)
 
     # ── Selective download helpers ─────────────────────────────────────────
 
@@ -736,6 +747,11 @@ class DownloaderView(BaseView):
         self._active_jobs.discard(job_id)
         self._job_progress.pop(job_id, None)
         add_log_entry("info" if success else "error", message)
+        s = load_settings()
+        if success and s.get("sound_alert_on_complete", True):
+            play_download_sound(success=True)
+        elif not success and s.get("sound_alert_on_error", True):
+            play_download_sound(success=False)
         if not success:
             add_log_entry("info", "Skipped (error), continuing with next job.")
             title = "Not supported" if "not supported" in message.lower() else "Download failed"

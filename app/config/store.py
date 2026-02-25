@@ -33,6 +33,8 @@ _DEFAULTS = {
     "concurrent_fragments": 4,
     "cookies_file": "",
     "default_start_page": "Download",
+    "sound_alert_on_complete": True,
+    "sound_alert_on_error": True,
 }
 
 

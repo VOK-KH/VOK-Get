@@ -114,6 +114,28 @@ class SettingsView(BaseView):
         mode_card.hBoxLayout.addSpacing(16)
         dl_group.addSettingCard(mode_card)
 
+        sound_complete_card = SettingCard(
+            FluentIcon.MUSIC,
+            "Sound alert on completed download",
+            "Play a sound when a download finishes successfully.",
+        )
+        self._sound_complete_switch = SwitchButton()
+        self._sound_complete_switch.setChecked(True)
+        sound_complete_card.hBoxLayout.addWidget(self._sound_complete_switch)
+        sound_complete_card.hBoxLayout.addSpacing(16)
+        dl_group.addSettingCard(sound_complete_card)
+
+        sound_error_card = SettingCard(
+            FluentIcon.IOT,
+            "Sound alert on download error",
+            "Play a sound when a download fails or is skipped.",
+        )
+        self._sound_error_switch = SwitchButton()
+        self._sound_error_switch.setChecked(True)
+        sound_error_card.hBoxLayout.addWidget(self._sound_error_switch)
+        sound_error_card.hBoxLayout.addSpacing(16)
+        dl_group.addSettingCard(sound_error_card)
+
         self._layout.addWidget(dl_group)
 
         # ── Performance group ─────────────────────────────────────────────
@@ -248,6 +270,8 @@ class SettingsView(BaseView):
         self._theme_combo.setCurrentText(theme)
         self._color_edit.setText(s.get("theme_color", "#0078D4"))
         self._cookies_edit.setText(s.get("cookies_file", ""))
+        self._sound_complete_switch.setChecked(s.get("sound_alert_on_complete", True))
+        self._sound_error_switch.setChecked(s.get("sound_alert_on_error", True))
 
     def _load_values(self) -> None:
         self._apply_settings_to_ui(load_settings())
@@ -277,6 +301,8 @@ class SettingsView(BaseView):
         s["theme"] = theme_name
         s["theme_color"] = color_hex
         s["cookies_file"] = self._cookies_edit.text().strip()
+        s["sound_alert_on_complete"] = self._sound_complete_switch.isChecked()
+        s["sound_alert_on_error"] = self._sound_error_switch.isChecked()
         save_settings(s)
 
         setTheme(_THEME_MAP.get(theme_name, Theme.AUTO))
