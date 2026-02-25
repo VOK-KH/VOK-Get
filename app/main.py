@@ -23,9 +23,10 @@ def main() -> int:
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
+    from app import __version__
     app = QApplication(sys.argv)
     app.setApplicationName("VOK")
-    app.setApplicationDisplayName("VOK - Video Downloader and Content Scraper")
+    app.setApplicationDisplayName(f"VOK - Video Downloader (v{__version__})")
     app.setStyle("Fusion")
 
     s = load_settings()

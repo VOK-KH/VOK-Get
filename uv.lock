@@ -3871,7 +3871,7 @@ wheels = [
 
 [[package]]
 name = "vok"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

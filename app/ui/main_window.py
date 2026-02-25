@@ -1,11 +1,10 @@
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import FluentIcon, FluentWindow, NavigationItemPosition
 
+import app
 from app.common.paths import PROJECT_ROOT
 
 from .views import DashboardView, DownloaderView, LogsView, SettingsView, VokStudioView
-
-APP_TITLE = "VOK — Download (Version 1.0)"
 
 
 class MainWindow(FluentWindow):
@@ -17,8 +16,8 @@ class MainWindow(FluentWindow):
 
         self.dashboard = DashboardView(self)
         self.downloader = DownloaderView(self)
-        self.studio = VokStudioView(self)
-        self.logs = LogsView(self)
+        # self.studio = VokStudioView(self)
+        # self.logs = LogsView(self)
         self.settings = SettingsView(self)
 
         self.addSubInterface(self.dashboard, FluentIcon.HOME, "Dashboard")
@@ -38,7 +37,7 @@ class MainWindow(FluentWindow):
         """Initialize window size, title, and position."""
         self.resize(900, 640)
         self.setMinimumSize(720, 480)
-        self.setWindowTitle(APP_TITLE)
+        self.setWindowTitle(f"VOK — Download (v{app.__version__})")
 
         logo_path = PROJECT_ROOT / "resources" / "icon.ico"
         if logo_path.exists():
