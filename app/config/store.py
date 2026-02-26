@@ -26,6 +26,7 @@ def get_settings_path():
 
 _DEFAULTS = {
     "download_path": str(get_default_downloads_dir()),
+    "download_format": "Best (video+audio)",
     "single_video_default": True,
     "theme": "Dark",
     "theme_color": "#0078D4",

@@ -14,8 +14,13 @@ from qfluentwidgets import (
     InfoBarPosition,
     LargeTitleLabel,
     LineEdit,
+    OptionsConfigItem,
+    OptionsSettingCard,
+    PushSettingCard,
+    OptionsValidator,
     PrimaryPushButton,
     PushButton,
+    QConfig,
     SegmentedWidget,
     SettingCard,
     SettingCardGroup,
@@ -29,11 +34,29 @@ from app.common.paths import get_default_downloads_dir
 from app.common.state import add_log_entry
 from app.config import get_default_settings, load_settings, save_settings
 from app.core.updater import check_update, download_update, install_update
+from app.ui.helpers import DOWNLOAD_FORMATS
 from app.ui.theme import apply_app_palette
 
 from .base import BaseView
 
 _THEME_MAP = {"Auto": Theme.AUTO, "Light": Theme.LIGHT, "Dark": Theme.DARK}
+_THEME_REVERSE = {v: k for k, v in _THEME_MAP.items()}
+
+
+class _VokConfig(QConfig):
+    """Application config items backed by QConfig for OptionsSettingCard."""
+    themeMode = OptionsConfigItem(
+        "Appearance",
+        "themeMode",
+        Theme.DARK,
+        OptionsValidator([Theme.LIGHT, Theme.DARK, Theme.AUTO]),
+    )
+
+    def save(self) -> None:  # VOK manages its own settings file — suppress QConfig I/O
+        pass
+
+
+vok_config = _VokConfig()
 
 
 class UpdateCheckWorker(QThread):
@@ -76,22 +99,28 @@ class SettingsView(BaseView):
         self._layout.addSpacing(4)
 
         # ── Download group ────────────────────────────────────────────────
-        dl_group = SettingCardGroup("Download", self)
+        dl_group = SettingCardGroup("Downloads", self)
 
-        path_card = SettingCard(
-            FluentIcon.FOLDER,
-            "Download path",
-            "Folder where downloaded files are saved",
+        self._path_push_card = PushSettingCard(
+            text="Choose",
+            icon=FluentIcon.FOLDER,
+            title="Download path",
+            content=str(get_default_downloads_dir()),
         )
-        self._path_edit = LineEdit()
-        self._path_edit.setMinimumWidth(240)
-        self._path_edit.setPlaceholderText(str(get_default_downloads_dir()))
-        browse_btn = PushButton("Browse…")
-        browse_btn.clicked.connect(self._browse_path)
-        path_card.hBoxLayout.addWidget(self._path_edit)
-        path_card.hBoxLayout.addWidget(browse_btn)
-        path_card.hBoxLayout.addSpacing(16)
-        dl_group.addSettingCard(path_card)
+        self._path_push_card.clicked.connect(self._browse_path)
+        dl_group.addSettingCard(self._path_push_card)
+
+        format_card = SettingCard(
+            FluentIcon.MEDIA,
+            "Default download format",
+            "Video/audio quality and container used for new downloads",
+        )
+        self._format_combo = ComboBox()
+        self._format_combo.addItems(DOWNLOAD_FORMATS)
+        self._format_combo.setFixedWidth(175)
+        format_card.hBoxLayout.addWidget(self._format_combo)
+        format_card.hBoxLayout.addSpacing(16)
+        dl_group.addSettingCard(format_card)
 
         single_card = SettingCard(
             FluentIcon.VIDEO,
@@ -172,17 +201,16 @@ class SettingsView(BaseView):
         # ── Appearance group ──────────────────────────────────────────────
         appear_group = SettingCardGroup("Appearance", self)
 
-        theme_card = SettingCard(
+        self._theme_card = OptionsSettingCard(
+            vok_config.themeMode,
             FluentIcon.BRUSH,
-            "Theme",
-            "Choose between automatic, light or dark mode",
+            "Application theme",
+            "Adjust the appearance of your application",
+            texts=["Light", "Dark", "Follow system settings"],
+            parent=self,
         )
-        self._theme_combo = ComboBox()
-        self._theme_combo.addItems(["Auto", "Light", "Dark"])
-        self._theme_combo.setFixedWidth(100)
-        theme_card.hBoxLayout.addWidget(self._theme_combo)
-        theme_card.hBoxLayout.addSpacing(16)
-        appear_group.addSettingCard(theme_card)
+        self._theme_card.optionChanged.connect(self._on_theme_option_changed)
+        appear_group.addSettingCard(self._theme_card)
 
         color_card = SettingCard(
             FluentIcon.PALETTE,
@@ -195,6 +223,7 @@ class SettingsView(BaseView):
         color_btn = PushButton("Choose…")
         color_btn.clicked.connect(self._pick_accent_color)
         color_card.hBoxLayout.addWidget(self._color_edit)
+        color_card.hBoxLayout.addSpacing(8)
         color_card.hBoxLayout.addWidget(color_btn)
         color_card.hBoxLayout.addSpacing(16)
         appear_group.addSettingCard(color_card)
@@ -217,6 +246,7 @@ class SettingsView(BaseView):
         cookies_browse_btn = PushButton("Browse…")
         cookies_browse_btn.clicked.connect(self._browse_cookies)
         cookies_card.hBoxLayout.addWidget(self._cookies_edit)
+        cookies_card.hBoxLayout.addSpacing(8)
         cookies_card.hBoxLayout.addWidget(cookies_browse_btn)
         cookies_card.hBoxLayout.addSpacing(16)
         adv_group.addSettingCard(cookies_card)
@@ -306,19 +336,22 @@ class SettingsView(BaseView):
 
     def _apply_settings_to_ui(self, s: dict) -> None:
         """Populate UI widgets from a settings dict (from load_settings or get_default_settings)."""
-        self._path_edit.setText(s.get("download_path", str(get_default_downloads_dir())))
+        self._path_push_card.contentLabel.setText(s.get("download_path", str(get_default_downloads_dir())))
+        fmt = s.get("download_format", "Best (video+audio)")
+        self._format_combo.setCurrentText(fmt if fmt in DOWNLOAD_FORMATS else DOWNLOAD_FORMATS[0])
         self._single_switch.setChecked(s.get("single_video_default", True))
         self._conc_combo.setCurrentText(str(int(s.get("concurrent_downloads", 2))))
         self._frag_combo.setCurrentText(str(int(s.get("concurrent_fragments", 4))))
-        theme = s.get("theme", "Dark")
-        if theme not in ("Auto", "Light", "Dark"):
-            theme = "Dark"
-        self._theme_combo.setCurrentText(theme)
         self._color_edit.setText(s.get("theme_color", "#0078D4"))
         self._cookies_edit.setText(s.get("cookies_file", ""))
         self._sound_complete_switch.setChecked(s.get("sound_alert_on_complete", True))
         self._sound_error_switch.setChecked(s.get("sound_alert_on_error", True))
         self._auto_update_switch.setChecked(s.get("auto_update_on_start", True))
+        # sync OptionsSettingCard
+        theme_name = s.get("theme", "Dark")
+        if theme_name not in _THEME_MAP:
+            theme_name = "Dark"
+        vok_config.set(vok_config.themeMode, _THEME_MAP[theme_name])
 
     def _load_values(self) -> None:
         self._apply_settings_to_ui(load_settings())
@@ -336,16 +369,16 @@ class SettingsView(BaseView):
         )
 
     def _save(self):
-        path = self._path_edit.text().strip() or str(get_default_downloads_dir())
+        path = self._path_push_card.contentLabel.text().strip() or str(get_default_downloads_dir())
         color_hex = self._color_edit.text().strip() or "#0078D4"
-        theme_name = self._theme_combo.currentText()
 
         s = load_settings()
         s["download_path"] = path
+        s["download_format"] = self._format_combo.currentText()
         s["single_video_default"] = self._single_switch.isChecked()
         s["concurrent_downloads"] = int(self._conc_combo.currentText())
         s["concurrent_fragments"] = int(self._frag_combo.currentText())
-        s["theme"] = theme_name
+        s["theme"] = _THEME_REVERSE.get(vok_config.themeMode.value, "Dark")
         s["theme_color"] = color_hex
         s["cookies_file"] = self._cookies_edit.text().strip()
         s["sound_alert_on_complete"] = self._sound_complete_switch.isChecked()
@@ -353,12 +386,12 @@ class SettingsView(BaseView):
         s["auto_update_on_start"] = self._auto_update_switch.isChecked()
         save_settings(s)
 
-        setTheme(_THEME_MAP.get(theme_name, Theme.AUTO))
+        setTheme(_THEME_MAP.get(s["theme"], Theme.AUTO))
         try:
             setThemeColor(QColor(color_hex))
         except Exception:
             pass
-        apply_app_palette(theme_name, color_hex)
+        apply_app_palette(s["theme"], color_hex)
 
         add_log_entry("info", "Settings saved.")
         InfoBar.success(
@@ -369,6 +402,10 @@ class SettingsView(BaseView):
             position=InfoBarPosition.TOP_RIGHT,
             parent=self,
         )
+
+    def _on_theme_option_changed(self, item: OptionsConfigItem) -> None:
+        """Live-preview theme when the user picks a different option."""
+        setTheme(item.value)
 
     def _on_enhance_mode_clicked(self):
         """Show 'Coming soon!' when user selects Enhance download mode."""
@@ -382,10 +419,10 @@ class SettingsView(BaseView):
         )
 
     def _browse_path(self):
-        start = self._path_edit.text() or str(get_default_downloads_dir())
+        start = self._path_push_card.contentLabel.text() or str(get_default_downloads_dir())
         path = QFileDialog.getExistingDirectory(self, "Download folder", start)
         if path:
-            self._path_edit.setText(path)
+            self._path_push_card.contentLabel.setText(path)
 
     def _browse_cookies(self):
         path, _ = QFileDialog.getOpenFileName(

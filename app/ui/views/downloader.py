@@ -21,7 +21,6 @@ from qfluentwidgets import (
     Action,
     BodyLabel,
     CardWidget,
-    ComboBox,
     FluentIcon,
     InfoBar,
     InfoBarPosition,
@@ -45,7 +44,7 @@ from app.config import load_settings
 from app.core.download import detect_platform
 from app.core.manager import DownloadJob, DownloadManager
 from app.core.scraper import PlaylistFetchWorker, fmt_duration, fmt_date
-from app.ui.components import CardHeader, DownloadPathPanel, DownloadTableCard
+from app.ui.components import CardHeader, DownloadConfigCard, DownloadPathPanel, DownloadTableCard
 from app.ui.helpers import DOWNLOAD_FORMATS, host_icon
 from app.ui.utils import format_size, strip_ansi
 
@@ -115,7 +114,7 @@ class DownloaderView(QFrame):
         self._build_selective_card()
         self._build_enhance_card()
         # self._build_path_panel()
-        self._build_format_card()
+        self._build_download_config_card()
         self._build_progress()
         self._build_log_card()
 
@@ -239,20 +238,9 @@ class DownloaderView(QFrame):
         self._sel_entries: list[dict] = []
         self._layout.addWidget(self._selective_card)
 
-    def _build_format_card(self):
-        card = CardWidget(self)
-        lay = QVBoxLayout(card)
-        lay.setSpacing(10)
-        lay.addWidget(CardHeader(FluentIcon.MEDIA, "Format", card))
-
-        fmt_row = QHBoxLayout()
-        fmt_row.addWidget(BodyLabel("Format", card))
-        self._format_combo = ComboBox(card)
-        self._format_combo.addItems(DOWNLOAD_FORMATS)
-        fmt_row.addWidget(self._format_combo)
-        fmt_row.addStretch(1)
-        lay.addLayout(fmt_row)
-        self._layout.addWidget(card)
+    def _build_download_config_card(self):
+        self._dl_config_card = DownloadConfigCard(self)
+        self._layout.addWidget(self._dl_config_card)
 
     def _build_footer_bar(self, outer_layout: QVBoxLayout) -> None:
         """Fixed footer bar with jobs count, Download and Stop all — always visible."""
@@ -395,7 +383,7 @@ class DownloaderView(QFrame):
 
     def _download_selected(self):
         s = load_settings()
-        fmt = self._format_combo.currentText()
+        fmt = self._dl_config_card.format_combo.currentText()
         out = s.get("download_path", str(get_default_downloads_dir()))
         cookies = s.get("cookies_file", "")
         jobs_and_entries: list[tuple[DownloadJob, dict]] = []
@@ -674,7 +662,7 @@ class DownloaderView(QFrame):
         """Enable/disable URL and mode controls during profile extract phase."""
         self._url_edit.setEnabled(enabled)
         self._mode_segmented.setEnabled(enabled)
-        self._format_combo.setEnabled(enabled)
+        self._dl_config_card.setEnabled(enabled)
 
     def _update_controls(self):
         count = len(self._active_jobs)
@@ -689,7 +677,7 @@ class DownloaderView(QFrame):
 
     def _start_download(self):
         s = load_settings()
-        fmt = self._format_combo.currentText()
+        fmt = self._dl_config_card.format_combo.currentText()
         out = s.get("download_path", str(get_default_downloads_dir()))
         cookies = s.get("cookies_file", "")
 
