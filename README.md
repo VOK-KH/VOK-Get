@@ -1,6 +1,32 @@
+<p align="center">
+  <img src="resources/images/home_tools.png" alt="VOK" width="280"/>
+</p>
+
 # VOK — Video Downloader
 
+<p align="center">
+  <strong>Download from YouTube, TikTok, Pinterest & 1000+ platforms — fast, offline, free.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/k10978311-ai/VOK"><img src="https://img.shields.io/github/stars/k10978311-ai/VOK?style=social" alt="GitHub Stars"></a>
+  <a href="https://github.com/k10978311-ai/VOK/releases/latest"><img src="https://img.shields.io/github/release/k10978311-ai/VOK.svg" alt="Latest release"></a>
+</p>
+
 A desktop application for downloading videos and scraping social media content, built with PyQt5 and a Fluent Design UI.
+
+---
+
+## Preview
+
+<div align="center">
+
+| Home | Download | Settings |
+|:---:|:---:|:---:|
+| <img src="resources/images/home_tools.png" alt="Home" width="280"/> | <img src="resources/images/download_image.png" alt="Download" width="280"/> | <img src="resources/images/setting_image.png" alt="Settings" width="280"/> |
+| *Home — Quick access & features* | *Single, Bulk, Selective, Enhance* | *Download path & performance* |
+
+</div>
 
 ---
 
@@ -72,9 +98,9 @@ Standalone executables can be built with PyInstaller. **Build on macOS for a Mac
 
 3. **Windows** — from project root:
    ```bat
-   scripts\build_win.bat
+   scripts/build_win.bat
    ```
-   Output: `dist\VOK\VOK.exe` (distribute the entire `dist\VOK` folder).
+   Output: `dist/VOK/VOK.exe` (distribute the entire `dist/VOK` folder).
 
 Users still need **FFmpeg** installed for audio/video merging.
 
@@ -140,11 +166,11 @@ Export cookies from your browser using the [Get cookies.txt LOCALLY](https://chr
   uv lock --upgrade && uv sync
   ```
   Or run:
-  - Windows: `scripts\update-deps.bat`
-  - Unix: `./scripts/update-deps.sh`
+  - Windows: `scripts/update-deps.bat`
+  - Unix: `scripts/update-deps.sh`
 
 ---
-<!-- 
+
 ## License
 
-MIT -->
+MIT
