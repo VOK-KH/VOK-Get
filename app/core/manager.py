@@ -59,6 +59,14 @@ class DownloadManager(QObject):
         """Number of parallel download jobs (for UI)."""
         return self._max_workers
 
+    def set_max_workers(self, n: int) -> None:
+        """Override parallel download jobs (1–4) for this session."""
+        self._max_workers = max(1, min(4, int(n)))
+
+    def set_concurrent_fragments(self, n: int) -> None:
+        """Override fragment threads per download (1–16) for this session."""
+        self._concurrent_fragments = max(1, min(16, int(n)))
+
     def enqueue(self, job: DownloadJob) -> None:
         """Add a job; start immediately if a worker slot is free."""
         if len(self._running) < self._max_workers:

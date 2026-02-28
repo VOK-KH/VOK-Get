@@ -287,10 +287,13 @@ class DownloaderView(QFrame):
         self._layout.addWidget(card)
 
     def showEvent(self, event):
-        """Refresh path panel when view is shown (e.g. after returning from Settings)."""
+        """Refresh path panel and download config path when view is shown (e.g. after returning from Settings)."""
         super().showEvent(event)
         if hasattr(self, "_path_panel"):
             self._path_panel.refresh_path()
+        if hasattr(self, "_dl_config_card"):
+            self._dl_config_card._refresh_path_display()
+            self._dl_config_card._refresh_performance_display()
 
     # ── Mode switch (segmented) ──────────────────────────────────────────
 
@@ -382,9 +385,11 @@ class DownloaderView(QFrame):
             self._sel_table.setUpdatesEnabled(True)
 
     def _download_selected(self):
+        self._manager.set_max_workers(self._dl_config_card.concurrent_downloads())
+        self._manager.set_concurrent_fragments(self._dl_config_card.concurrent_fragments())
         s = load_settings()
         fmt = self._dl_config_card.format_combo.currentText()
-        out = s.get("download_path", str(get_default_downloads_dir()))
+        out = self._output_dir()
         cookies = s.get("cookies_file", "")
         jobs_and_entries: list[tuple[DownloadJob, dict]] = []
         for row in range(self._sel_table.rowCount()):
@@ -675,10 +680,20 @@ class DownloaderView(QFrame):
 
     # ── Download control ──────────────────────────────────────────────────
 
+    def _output_dir(self) -> str:
+        """Output folder: card override if set, else default from Settings."""
+        override = self._dl_config_card.output_dir()
+        if override:
+            return override
+        s = load_settings()
+        return s.get("download_path", str(get_default_downloads_dir()))
+
     def _start_download(self):
+        self._manager.set_max_workers(self._dl_config_card.concurrent_downloads())
+        self._manager.set_concurrent_fragments(self._dl_config_card.concurrent_fragments())
         s = load_settings()
         fmt = self._dl_config_card.format_combo.currentText()
-        out = s.get("download_path", str(get_default_downloads_dir()))
+        out = self._output_dir()
         cookies = s.get("cookies_file", "")
 
         if self._mode_segmented.currentRouteKey() == "bulk":
