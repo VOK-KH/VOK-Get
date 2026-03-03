@@ -32,6 +32,7 @@ from qfluentwidgets import (
     PushButton,
     RoundMenu,
     ScrollArea,
+    StateToolTip,
     SwitchButton,
     SegmentedWidget,
     TableWidget,
@@ -107,6 +108,9 @@ class DownloaderView(QFrame):
         self._progress_timer.setSingleShot(True)
         self._progress_timer.timeout.connect(self._flush_progress_ui)
         self._progress_flush_pending = False
+        self._state_tooltip: StateToolTip | None = None
+        self._tooltip_total: int = 0
+        self._tooltip_done: int = 0
 
         self._build_mode_bar()
         self._build_url_card()
@@ -331,6 +335,7 @@ class DownloaderView(QFrame):
         self._preview_progress.setVisible(False)
         self._preview_btn.setEnabled(False)
         self._sel_status.setText("Fetching playlist…")
+        self._show_state_tooltip("Playlist preview", "Fetching entries…")
         self._playlist_worker.start()
 
     def _on_entries_ready(self, entries: list):
@@ -363,6 +368,7 @@ class DownloaderView(QFrame):
         self._preview_progress.setVisible(False)
         self._preview_btn.setEnabled(True)
         self._sel_status.setText(msg)
+        self._close_state_tooltip()
         if not success:
             title = "Not supported" if "not supported" in msg.lower() else "Preview failed"
             InfoBar.warning(
@@ -413,6 +419,12 @@ class DownloaderView(QFrame):
         for job, _ in jobs_and_entries:
             self._manager.enqueue(job)
         add_log_entry("info", f"Queued {len(jobs_and_entries)} selected item(s) for download.")
+        self._tooltip_total += len(jobs_and_entries)
+        self._tooltip_done = 0
+        self._show_state_tooltip(
+            "Downloading selected",
+            f"0 / {len(jobs_and_entries)} complete",
+        )
         if self._progress_indet is not None:
             self._progress_indet.setVisible(False)
         if self._progress is not None:
@@ -434,6 +446,7 @@ class DownloaderView(QFrame):
         self._set_profile_extract_controls(False)
         self._start_btn.setEnabled(False)
         self._log_append("[info] Phase 1: Extracting video list from profile/playlist…")
+        self._show_state_tooltip("Extracting playlist", "Fetching video list…")
         self._direct_playlist_worker.start()
 
     def _on_direct_playlist_entries(
@@ -468,6 +481,11 @@ class DownloaderView(QFrame):
         add_log_entry(
             "info",
             f"Phase 2: Queued {len(jobs_and_entries)} download(s); up to {self._manager.max_workers} in parallel. Errors skip to next.",
+        )
+        self._tooltip_total += len(jobs_and_entries)
+        self._tooltip_done = 0
+        self._update_state_tooltip(
+            f"Downloading {len(jobs_and_entries)} video(s)…"
         )
         self._update_controls()
 
@@ -669,6 +687,33 @@ class DownloaderView(QFrame):
         self._mode_segmented.setEnabled(enabled)
         self._dl_config_card.setEnabled(enabled)
 
+    # ── StateToolTip helpers ──────────────────────────────────────────────
+
+    def _show_state_tooltip(self, title: str, content: str) -> None:
+        """Create and show a new StateToolTip, dismissing any existing one."""
+        self._close_state_tooltip()
+        win = self.window()
+        self._state_tooltip = StateToolTip(title, content, win)
+        self._state_tooltip.move(win.width() - 300, 45)
+        self._state_tooltip.show()
+
+    def _update_state_tooltip(self, content: str) -> None:
+        """Update the content of the current StateToolTip if visible."""
+        if self._state_tooltip is not None:
+            try:
+                self._state_tooltip.setContent(content)
+            except RuntimeError:
+                self._state_tooltip = None
+
+    def _close_state_tooltip(self) -> None:
+        """Mark the StateToolTip as done (check-mark) and release reference."""
+        if self._state_tooltip is not None:
+            try:
+                self._state_tooltip.setState(True)
+            except RuntimeError:
+                pass
+            self._state_tooltip = None
+
     def _update_controls(self):
         count = len(self._active_jobs)
         self._stop_btn.setEnabled(count > 0)
@@ -722,6 +767,12 @@ class DownloaderView(QFrame):
             self._add_download_rows_batch(rows_data)
             for j, _ in jobs_and_urls:
                 self._manager.enqueue(j)
+            self._tooltip_total = len(jobs_and_urls)
+            self._tooltip_done = 0
+            self._show_state_tooltip(
+                "Bulk download",
+                f"0 / {len(jobs_and_urls)} complete",
+            )
         else:
             url = self._url_edit.text().strip()
             if not url:
@@ -742,6 +793,9 @@ class DownloaderView(QFrame):
                 self._active_jobs.add(job.job_id)
                 self._add_download_row(job.job_id, url, out, url=job.url)
                 self._manager.enqueue(job)
+                self._tooltip_total = 1
+                self._tooltip_done = 0
+                self._show_state_tooltip("Downloading", "Starting download…")
 
         if self._progress_indet is not None:
             self._progress_indet.setVisible(True)
@@ -790,12 +844,15 @@ class DownloaderView(QFrame):
     def _stop_all(self):
         self._manager.cancel_all()
         self._log_append("Cancelling all active downloads…")
+        self._update_state_tooltip("Cancelled.")
+        self._close_state_tooltip()
 
     def _on_job_finished(
         self, job_id: str, success: bool, message: str, filepath: str, size_bytes: int
     ) -> None:
         self._active_jobs.discard(job_id)
         self._job_progress.pop(job_id, None)
+        self._tooltip_done += 1
         add_log_entry("info" if success else "error", message)
         s = load_settings()
         if success and s.get("sound_alert_on_complete", True):
@@ -841,6 +898,15 @@ class DownloaderView(QFrame):
                 self._progress.setVisible(False)
             if self._progress_pct_label is not None:
                 self._progress_pct_label.setVisible(False)
+            self._update_state_tooltip(
+                f"{self._tooltip_done} / {self._tooltip_total} complete"
+            )
+            self._close_state_tooltip()
+            self._tooltip_total = 0
+            self._tooltip_done = 0
         else:
+            self._update_state_tooltip(
+                f"{self._tooltip_done} / {self._tooltip_total} complete"
+            )
             self._update_header_progress()
         self._update_controls()

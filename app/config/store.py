@@ -29,7 +29,7 @@ _DEFAULTS = {
     "download_format": "Best (video+audio)",
     "single_video_default": True,
     "theme": "Dark",
-    "theme_color": "#0078D4",
+    "theme_color": "#F0860D",
     "concurrent_downloads": 2,
     "concurrent_fragments": 4,
     "cookies_file": "",

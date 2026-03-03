@@ -5,7 +5,7 @@ import webbrowser
 import app
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QColorDialog, QFileDialog, QHBoxLayout, QMessageBox
+from PyQt5.QtWidgets import QColorDialog, QFileDialog, QMessageBox
 
 from qfluentwidgets import (
     ComboBox,
@@ -18,7 +18,6 @@ from qfluentwidgets import (
     OptionsSettingCard,
     PushSettingCard,
     OptionsValidator,
-    PrimaryPushButton,
     PushButton,
     QConfig,
     SegmentedWidget,
@@ -251,6 +250,18 @@ class SettingsView(BaseView):
         cookies_card.hBoxLayout.addSpacing(16)
         adv_group.addSettingCard(cookies_card)
 
+        reset_card = SettingCard(
+            FluentIcon.SYNC,
+            "Reset settings",
+            "Restore all settings to their factory defaults",
+        )
+        self._reset_btn = PushButton("Reset to defaults")
+        self._reset_btn.setIcon(FluentIcon.SYNC)
+        self._reset_btn.clicked.connect(self._reset)
+        reset_card.hBoxLayout.addWidget(self._reset_btn)
+        reset_card.hBoxLayout.addSpacing(16)
+        adv_group.addSettingCard(reset_card)
+
         self._layout.addWidget(adv_group)
 
         # ── Software update group ─────────────────────────────────────────
@@ -315,22 +326,10 @@ class SettingsView(BaseView):
         self._update_check_worker = None
         self._update_download_worker = None
 
-        # ── Actions ───────────────────────────────────────────────────────
-        btn_row = QHBoxLayout()
-        self._save_btn = PrimaryPushButton("Save")
-        self._save_btn.setIcon(FluentIcon.SAVE)
-        self._save_btn.clicked.connect(self._save)
-        self._reset_btn = PushButton("Reset")
-        self._reset_btn.setIcon(FluentIcon.SYNC)
-        self._reset_btn.clicked.connect(self._reset)
-        btn_row.addWidget(self._save_btn)
-        btn_row.addWidget(self._reset_btn)
-        btn_row.addStretch(1)
-        self._layout.addSpacing(8)
-        self._layout.addLayout(btn_row)
         self._layout.addStretch(1)
 
         self._load_values()
+        self._connect_auto_save()
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -356,12 +355,25 @@ class SettingsView(BaseView):
     def _load_values(self) -> None:
         self._apply_settings_to_ui(load_settings())
 
+    def _connect_auto_save(self) -> None:
+        """Connect all widget change signals to auto-save."""
+        self._format_combo.currentTextChanged.connect(self._save)
+        self._single_switch.checkedChanged.connect(self._save)
+        self._conc_combo.currentTextChanged.connect(self._save)
+        self._frag_combo.currentTextChanged.connect(self._save)
+        self._sound_complete_switch.checkedChanged.connect(self._save)
+        self._sound_error_switch.checkedChanged.connect(self._save)
+        self._auto_update_switch.checkedChanged.connect(self._save)
+        self._color_edit.editingFinished.connect(self._save)
+        self._cookies_edit.editingFinished.connect(self._save)
+
     def _reset(self) -> None:
-        """Reset form to default settings and show feedback."""
+        """Reset all settings to defaults and auto-save."""
         self._apply_settings_to_ui(get_default_settings())
+        self._save()
         InfoBar.success(
             title="Reset",
-            content="Settings form reset to defaults. Click Save to apply.",
+            content="Settings restored to defaults.",
             isClosable=True,
             duration=2500,
             position=InfoBarPosition.TOP_RIGHT,
@@ -394,18 +406,11 @@ class SettingsView(BaseView):
         apply_app_palette(s["theme"], color_hex)
 
         add_log_entry("info", "Settings saved.")
-        InfoBar.success(
-            title="Saved",
-            content="Settings saved successfully.",
-            isClosable=True,
-            duration=2500,
-            position=InfoBarPosition.TOP_RIGHT,
-            parent=self,
-        )
 
     def _on_theme_option_changed(self, item: OptionsConfigItem) -> None:
-        """Live-preview theme when the user picks a different option."""
+        """Live-preview theme and auto-save when the user picks a different option."""
         setTheme(item.value)
+        self._save()
 
     def _on_enhance_mode_clicked(self):
         """Show 'Coming soon!' when user selects Enhance download mode."""
@@ -423,6 +428,7 @@ class SettingsView(BaseView):
         path = QFileDialog.getExistingDirectory(self, "Download folder", start)
         if path:
             self._path_push_card.contentLabel.setText(path)
+            self._save()
 
     def _browse_cookies(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -433,6 +439,7 @@ class SettingsView(BaseView):
         )
         if path:
             self._cookies_edit.setText(path)
+            self._save()
 
     def _on_check_update_clicked(self):
         if self._update_check_worker and self._update_check_worker.isRunning():
@@ -502,3 +509,4 @@ class SettingsView(BaseView):
         color = QColorDialog.getColor(initial, self, "Accent color")
         if color.isValid():
             self._color_edit.setText(color.name())
+            self._save()
