@@ -24,7 +24,7 @@ class DashboardView(BaseView):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Dashboard")
+        self.setWindowTitle(self.tr("Dashboard"))
         self._build_ui()
 
     CONTENT_MARGINS = (24, 0, 24, 24)

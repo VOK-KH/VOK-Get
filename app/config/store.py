@@ -6,7 +6,6 @@ from pathlib import Path
 from app.common.paths import get_config_dir, get_default_downloads_dir
 
 
-
 def _settings_path() -> Path:
     return get_config_dir() / "vok_settings.json"
 
@@ -30,6 +29,7 @@ _DEFAULTS = {
     "single_video_default": True,
     "theme": "Dark",
     "theme_color": "#F0860D",
+    "language": "Auto (System)",
     "concurrent_downloads": 2,
     "concurrent_fragments": 4,
     "cookies_file": "",

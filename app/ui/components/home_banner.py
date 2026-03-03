@@ -45,7 +45,7 @@ class HomeBanner(QWidget):
         top_row = QHBoxLayout()
         # top_row.setSpacing(8)
 
-        self._title = TitleLabel("VOK Downloader", self)
+        self._title = TitleLabel(self.tr("VOK Downloader"), self)
         self._title.setStyleSheet("font-size: 32px; font-weight: 700;")
         top_row.addWidget(self._title)
         top_row.addStretch(1)
@@ -53,7 +53,7 @@ class HomeBanner(QWidget):
         self._github_btn = TransparentToolButton(self)
         self._github_btn.setIcon(QIcon(str(RESOURCES_DIR / "icons" / "github_filde.png")))
         self._github_btn.setIconSize(QSize(28, 28))
-        self._github_btn.setToolTip("View on GitHub")
+        self._github_btn.setToolTip(self.tr("View on GitHub"))
         self._github_btn.setFixedSize(48, 48)
         self._github_btn.clicked.connect(self.open_github)
         top_row.addWidget(self._github_btn)
@@ -61,7 +61,7 @@ class HomeBanner(QWidget):
         self._youtube_btn = TransparentToolButton(self)
         self._youtube_btn.setIcon(QIcon(str(RESOURCES_DIR / "icons" / "youtube.png")))
         self._youtube_btn.setIconSize(QSize(28, 28))
-        self._youtube_btn.setToolTip("Watch tutorial on YouTube")
+        self._youtube_btn.setToolTip(self.tr("Watch tutorial on YouTube"))
         self._youtube_btn.setFixedSize(48, 48)
         self._youtube_btn.clicked.connect(self.open_youtube_link)
         top_row.addWidget(self._youtube_btn)
@@ -72,7 +72,7 @@ class HomeBanner(QWidget):
 
         # ── Subtitle ─────────────────────────────────────────────────────
         self._sub = BodyLabel(
-            "Download from YouTube, TikTok, Pinterest & 1000+ platforms — fast, offline, free.",
+            self.tr("Download from YouTube, TikTok, Pinterest & 1000+ platforms — fast, offline, free."),
             self,
         )
         self._sub.setStyleSheet("font-size: 13px;")
@@ -87,13 +87,13 @@ class HomeBanner(QWidget):
         tiles_row.setContentsMargins(0, 20, 20, 20)
 
         tile_download = FeatureTile(
-            FluentIcon.DOWNLOAD, "Download", "Paste a URL and start", self
+            FluentIcon.DOWNLOAD, self.tr("Download"), self.tr("Paste a URL and start"), self
         )
         tile_logs = FeatureTile(
-            FluentIcon.FOLDER, "Logs", "View downloaded files", self
+            FluentIcon.FOLDER, self.tr("Logs"), self.tr("View downloaded files"), self
         )
         tile_folder = FeatureTile(
-            FluentIcon.FOLDER_ADD, "Open Folder", "Browse your downloads", self
+            FluentIcon.FOLDER_ADD, self.tr("Open Folder"), self.tr("Browse your downloads"), self
         )
 
         tile_download.clicked.connect(self.open_downloader_requested)

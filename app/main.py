@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import Theme, setTheme, setThemeColor, FluentIcon, InfoBar, InfoBarPosition, SplashScreen
 
 from app.common.paths import PROJECT_ROOT
+from app.common.i18n import apply_language, LANGUAGES
 from app.config import load_settings
 from app.ui.main_window import MainWindow
 from app.ui.theme import apply_app_palette
@@ -43,6 +44,11 @@ def main() -> int:
     app.setApplicationName("VOK")
     app.setApplicationDisplayName(f"VOK - Video Downloader (v{__version__})")
     app.setStyle("Fusion")
+
+    # ── Translations ──────────────────────────────────────────────────────
+    _lang_pref = load_settings().get("language", "Auto (System)")
+    _locale_str = LANGUAGES.get(_lang_pref, "")
+    apply_language(_locale_str)
 
     s = load_settings()
     theme_name = s.get("theme", "Dark")

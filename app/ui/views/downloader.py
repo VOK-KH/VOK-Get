@@ -1,5 +1,3 @@
-"""Downloader view: single, bulk, and selective download with HD/4K/Photo formats."""
-
 import os
 import subprocess
 import sys
@@ -504,8 +502,6 @@ class DownloaderView(QFrame):
                 parent=self,
             )
         self._update_controls()
-
-    # ── Download table helpers ─────────────────────────────────────────────
 
     def _add_download_row(
         self, job_id: str, message: str, output_dir: str = "", url: str = "", scroll: bool = True

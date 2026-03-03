@@ -17,6 +17,7 @@ dependencies = [
     "pillow>=11.3.0",
     "apscheduler>=3.11.2",
     "pyqtwebengine>=5.15.7",
+    "translate-toolkit>=3.19.2",
 ]
 
 [project.optional-dependencies]

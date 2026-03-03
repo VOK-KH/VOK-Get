@@ -29,8 +29,8 @@ class DashboardInstructionsCard(CardWidget):
 
     def __init__(
         self,
-        title: str = "How to use",
-        steps: tuple[str, ...] = DEFAULT_STEPS,
+        title: str | None = None,
+        steps: tuple[str, ...] | None = None,
         instructions_dir: Path | None = INSTRUCTIONS_DIR,
         parent=None,
     ):
@@ -38,13 +38,20 @@ class DashboardInstructionsCard(CardWidget):
         self.setObjectName("DashboardInstructionsCard")
         self._instructions_dir = instructions_dir or INSTRUCTIONS_DIR
 
+        _title = title or self.tr("How to use")
+        _steps = steps or (
+            self.tr("1. Copy a video URL from your browser."),
+            self.tr("2. Go to the Download tab, paste the URL, and choose your format."),
+            self.tr("3. Click Download — track progress in the Logs tab."),
+        )
+
         layout = QVBoxLayout(self)
         layout.setSpacing(LAYOUT_SPACING)
         layout.setContentsMargins(*LAYOUT_MARGINS)
-        layout.addWidget(SubtitleLabel(title, self))
+        layout.addWidget(SubtitleLabel(_title, self))
         layout.addSpacing(STEP_SPACING)
 
-        for text in steps:
+        for text in _steps:
             lbl = BodyLabel(text, self)
             lbl.setWordWrap(True)
             layout.addWidget(lbl)

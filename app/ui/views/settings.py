@@ -29,6 +29,7 @@ from qfluentwidgets import (
     Theme,
 )
 
+from app.common.i18n import apply_language, LANGUAGES
 from app.common.paths import get_default_downloads_dir
 from app.common.state import add_log_entry
 from app.config import get_default_settings, load_settings, save_settings
@@ -211,6 +212,18 @@ class SettingsView(BaseView):
         self._theme_card.optionChanged.connect(self._on_theme_option_changed)
         appear_group.addSettingCard(self._theme_card)
 
+        language_card = SettingCard(
+            FluentIcon.LANGUAGE,
+            "Language",
+            "Application display language (restart may be needed for full effect)",
+        )
+        self._language_combo = ComboBox()
+        self._language_combo.addItems(list(LANGUAGES.keys()))
+        self._language_combo.setFixedWidth(175)
+        language_card.hBoxLayout.addWidget(self._language_combo)
+        language_card.hBoxLayout.addSpacing(16)
+        appear_group.addSettingCard(language_card)
+
         color_card = SettingCard(
             FluentIcon.PALETTE,
             "Accent color",
@@ -346,6 +359,9 @@ class SettingsView(BaseView):
         self._sound_complete_switch.setChecked(s.get("sound_alert_on_complete", True))
         self._sound_error_switch.setChecked(s.get("sound_alert_on_error", True))
         self._auto_update_switch.setChecked(s.get("auto_update_on_start", True))
+        lang = s.get("language", "Auto (System)")
+        lang_labels = list(LANGUAGES.keys())
+        self._language_combo.setCurrentText(lang if lang in lang_labels else lang_labels[0])
         # sync OptionsSettingCard
         theme_name = s.get("theme", "Dark")
         if theme_name not in _THEME_MAP:
@@ -366,6 +382,7 @@ class SettingsView(BaseView):
         self._auto_update_switch.checkedChanged.connect(self._save)
         self._color_edit.editingFinished.connect(self._save)
         self._cookies_edit.editingFinished.connect(self._save)
+        self._language_combo.currentTextChanged.connect(self._on_language_changed)
 
     def _reset(self) -> None:
         """Reset all settings to defaults and auto-save."""
@@ -396,6 +413,7 @@ class SettingsView(BaseView):
         s["sound_alert_on_complete"] = self._sound_complete_switch.isChecked()
         s["sound_alert_on_error"] = self._sound_error_switch.isChecked()
         s["auto_update_on_start"] = self._auto_update_switch.isChecked()
+        s["language"] = self._language_combo.currentText()
         save_settings(s)
 
         setTheme(_THEME_MAP.get(s["theme"], Theme.AUTO))
@@ -411,6 +429,20 @@ class SettingsView(BaseView):
         """Live-preview theme and auto-save when the user picks a different option."""
         setTheme(item.value)
         self._save()
+
+    def _on_language_changed(self, label: str) -> None:
+        """Apply translator immediately and save."""
+        locale_str = LANGUAGES.get(label, "")
+        apply_language(locale_str)
+        self._save()
+        InfoBar.info(
+            title="Language changed",
+            content="Some text will update on next restart.",
+            isClosable=True,
+            duration=3500,
+            position=InfoBarPosition.TOP_RIGHT,
+            parent=self,
+        )
 
     def _on_enhance_mode_clicked(self):
         """Show 'Coming soon!' when user selects Enhance download mode."""
