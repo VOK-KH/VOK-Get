@@ -7,6 +7,7 @@ from PyQt5.QtGui import QColor, QIcon
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import Theme, setTheme, setThemeColor, FluentIcon, InfoBar, InfoBarPosition, SplashScreen, qconfig
 from app import bootstrap
+from app.common.application import SingletonApplication, exception_hook  # noqa: F401 — installs sys.excepthook
 
 from app.common.paths import PROJECT_ROOT, APPDATA_DIR
 from app.common.i18n import apply_language, LANGUAGES
@@ -41,7 +42,7 @@ def main() -> int:
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
     from app import __version__
-    app = QApplication(sys.argv)
+    app = SingletonApplication(sys.argv, "VOK")
     app.setApplicationName("VOK")
     app.setApplicationDisplayName(f"VOK - Video Downloader (v{__version__})")
     app.setStyle("Fusion")

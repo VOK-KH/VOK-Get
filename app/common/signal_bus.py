@@ -19,5 +19,11 @@ class _SignalBus(QObject):
     # (job_id, success, source_filename, output_path, size_bytes)
     enhance_finished = pyqtSignal(str, bool, str, str, int)
 
+    # App / tray
+    app_message = pyqtSignal(str)  # e.g. "show" to show main window
+    app_error = pyqtSignal(str)  # error message for unhandled exceptions
+    redownload_task = pyqtSignal(object)  # task to redownload
+
 
 signal_bus = _SignalBus()
+signalBus = signal_bus  # alias for components that expect this name

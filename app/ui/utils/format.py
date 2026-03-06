@@ -21,3 +21,17 @@ def format_size(size_bytes: int) -> str:
             return f"{size_bytes:.1f} {unit}"
         size_bytes /= 1024
     return f"{size_bytes:.1f} PB"
+
+
+def format_speed(bytes_per_sec: float) -> str:
+    """Format bytes per second as human-readable speed (e.g. 1.2 MB/s)."""
+    if bytes_per_sec <= 0 or not isinstance(bytes_per_sec, (int, float)):
+        return "—"
+    n = float(bytes_per_sec)
+    for unit in ("B/s", "KB/s", "MB/s", "GB/s"):
+        if n < 1024:
+            if unit == "B/s":
+                return f"{int(n)} B/s"
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} TB/s"

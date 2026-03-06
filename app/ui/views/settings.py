@@ -194,6 +194,20 @@ class SettingsView(BaseView):
         self._auto_reset_card.hBoxLayout.addSpacing(16)
         self._dl_group.addSettingCard(self._auto_reset_card)
 
+        self._enhance_history_card = SettingCard(
+            FluentIcon.HISTORY,
+            self.tr("Save enhance task history"),
+            self.tr(
+                "Store completed enhance jobs in the local database"
+                " so they appear in the Finished / Failed task tabs."
+            ),
+        )
+        self._enhance_history_switch = SwitchButton()
+        self._enhance_history_switch.setChecked(True)
+        self._enhance_history_card.hBoxLayout.addWidget(self._enhance_history_switch)
+        self._enhance_history_card.hBoxLayout.addSpacing(16)
+        self._dl_group.addSettingCard(self._enhance_history_card)
+
         self._layout.addWidget(self._dl_group)
 
         # ── Performance group ─────────────────────────────────────────────
@@ -447,6 +461,15 @@ class SettingsView(BaseView):
                 "Automatically clear the URL input field after a download starts."
             )
         )
+        self._enhance_history_card.titleLabel.setText(
+            self.tr("Save enhance task history")
+        )
+        self._enhance_history_card.contentLabel.setText(
+            self.tr(
+                "Store completed enhance jobs in the local database"
+                " so they appear in the Finished / Failed task tabs."
+            )
+        )
 
         # Performance cards
         self._conc_card.titleLabel.setText(self.tr("Concurrent downloads"))
@@ -542,6 +565,7 @@ class SettingsView(BaseView):
         self._sound_complete_switch.setChecked(s.get("sound_alert_on_complete", True))
         self._sound_error_switch.setChecked(s.get("sound_alert_on_error", True))
         self._auto_reset_switch.setChecked(s.get("auto_reset_link_before_download", True))
+        self._enhance_history_switch.setChecked(s.get("enhance_task_store_history", True))
         self._auto_update_switch.setChecked(s.get("auto_update_on_start", True))
         lang = s.get("language", "Auto (System)")
         lang_labels = list(LANGUAGES.keys())
@@ -564,6 +588,7 @@ class SettingsView(BaseView):
         self._sound_complete_switch.checkedChanged.connect(self._save)
         self._sound_error_switch.checkedChanged.connect(self._save)
         self._auto_reset_switch.checkedChanged.connect(self._save)
+        self._enhance_history_switch.checkedChanged.connect(self._save)
         self._auto_update_switch.checkedChanged.connect(self._save)
         self._color_edit.editingFinished.connect(self._save)
         self._cookies_edit.editingFinished.connect(self._save)
@@ -598,6 +623,7 @@ class SettingsView(BaseView):
         s["sound_alert_on_complete"] = self._sound_complete_switch.isChecked()
         s["sound_alert_on_error"] = self._sound_error_switch.isChecked()
         s["auto_reset_link_before_download"] = self._auto_reset_switch.isChecked()
+        s["enhance_task_store_history"] = self._enhance_history_switch.isChecked()
         s["auto_update_on_start"] = self._auto_update_switch.isChecked()
         s["language"] = self._language_combo.currentText()
         save_settings(s)

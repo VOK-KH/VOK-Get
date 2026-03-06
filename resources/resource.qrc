@@ -1,0 +1,73 @@
+<RCC>
+    <qresource prefix="/app">
+        <file>images/icons/SettingsFilled_white.svg</file>
+        <file>images/icons/SettingsFilled_black.svg</file>
+        <file>images/icons/Settings_white.svg</file>
+        <file>images/icons/Settings_black.svg</file>
+        <file>images/icons/CloudDownloadFilled_white.svg</file>
+        <file>images/icons/CloudDownloadFilled_black.svg</file>
+        <file>images/icons/CloudDownload_white.svg</file>
+        <file>images/icons/CloudDownload_black.svg</file>
+        <file>images/icons/Select_white.svg</file>
+        <file>images/icons/Select_black.svg</file>
+        <file>images/logo.png</file>
+        <file>images/M3U8DL.png</file>
+        <file>images/DefaultCover.jpg</file>
+
+        <file>i18n/app.zh_CN.qm</file>
+        <file>i18n/app.zh_HK.qm</file>
+        <file>images/logo/Terminal.svg</file>
+        <file>images/logo/Whale.svg</file>
+        <file>images/logo/Joystick.svg</file>
+        <file>images/logo/Label.svg</file>
+        <file>images/logo/Bookmark.svg</file>
+        <file>images/logo/Office.svg</file>
+        <file>images/logo/Pencil.svg</file>
+        <file>images/logo/Wastebasket.svg</file>
+        <file>images/logo/Broom.svg</file>
+        <file>images/logo/BarChart.svg</file>
+        <file>images/logo/Package.svg</file>
+        <file>images/logo/Monkey.svg</file>
+        <file>images/logo/Rocket.svg</file>
+        <file>images/logo/Moon.svg</file>
+        <file>images/logo/Knot.svg</file>
+        <file>images/logo/Link.svg</file>
+        <file>images/logo/Alembic.svg</file>
+        <file>images/logo/Hammer.svg</file>
+        <file>images/logo/Folder.svg</file>
+        <file>images/logo/Window.svg</file>
+        <file>images/logo/CardFileBox.svg</file>
+        <file>images/logo/Film.svg</file>
+        <file>images/logo/Globe.svg</file>
+        <file>images/logo/Hourglass.svg</file>
+        <file>images/logo/Cookie.svg</file>
+        <file>images/logo/Scroll.svg</file>
+        <file>images/logo/Calendar.svg</file>
+        <file>images/logo/Inbox.svg</file>
+        <file>images/logo/Planet.svg</file>
+        <file>images/logo/Airplane.svg</file>
+        <file>images/logo/FFmpeg.svg</file>
+        <file>images/logo/Control.svg</file>
+        <file>images/logo/Projector.svg</file>
+        <file>images/logo/Smileface.svg</file>
+        <file>images/logo/Postal.svg</file>
+        <file>images/logo/VideoCamera.svg</file>
+        <file>images/logo/Puzzle.svg</file>
+        <file>images/logo/Syringe.svg</file>
+        <file>images/logo/Bandage.svg</file>
+        <file>images/logo/Timer.svg</file>
+        <file>images/logo/Key.svg</file>
+        <file>images/logo/Ledger.svg</file>
+        <file>images/logo/Gear.svg</file>
+        <file>images/logo/Unlocked.svg</file>
+        <file>images/logo/Bento.svg</file>
+        <file>images/logo/Cyclone.svg</file>
+        <file>images/logo/Videocassette.svg</file>
+        <file>images/logo/Shield.svg</file>
+        <file>images/logo/Pizza.svg</file>
+
+        <file>images/ico/M3U8DL.ico</file>
+        <file>images/png/ShakaPackager.png</file>
+
+    </qresource>
+</RCC>

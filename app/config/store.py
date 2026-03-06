@@ -1,13 +1,28 @@
-"""Settings store: load/save from JSON file."""
+"""Settings store: load/save from JSON file and central path constants."""
 
 import json
 from pathlib import Path
 
-from app.common.paths import get_config_dir, get_default_downloads_dir, PROJECT_ROOT
+from app.common.paths import (
+    get_config_dir,
+    get_cover_folder,
+    get_db_path,
+    get_default_downloads_dir,
+    get_log_dir,
+    PROJECT_ROOT,
+)
+
+# ── Config / app data paths (used by database, logger, entity) ─────────────────
+
+CONFIG_FOLDER = get_config_dir()
+CONFIG_FILE = CONFIG_FOLDER / "vok_settings.json"
+DB_PATH = get_db_path()
+LOG_FOLDER = get_log_dir()
+COVER_FOLDER = get_cover_folder()
 
 
 def _settings_path() -> Path:
-    return get_config_dir() / "vok_settings.json"
+    return CONFIG_FILE
 
 
 SETTINGS_PATH = _settings_path()
@@ -56,6 +71,7 @@ _DEFAULTS = {
     "enhance_aspect_ratio": "original",
     "enhance_bg_type": "blur",
     "enhance_bg_color": "#000000",
+    "enhance_task_store_history": True,
 }
 
 

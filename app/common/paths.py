@@ -52,3 +52,22 @@ def get_default_downloads_dir() -> Path:
     path = Path.home() / "Downloads" / VOK_VIDEO_SUBFOLDER
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def get_log_dir() -> Path:
+    """Log directory under config dir (e.g. AppData/log)."""
+    path = get_config_dir() / "log"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_db_path() -> Path:
+    """Database file path under config dir (e.g. AppData/database.db)."""
+    return get_config_dir() / "database.db"
+
+
+def get_cover_folder() -> Path:
+    """Cover/thumbnails folder under config dir (e.g. AppData/Cover)."""
+    path = get_config_dir() / "Cover"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
