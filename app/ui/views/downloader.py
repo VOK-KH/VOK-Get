@@ -43,9 +43,10 @@ from app.common.sound import play_download_sound
 from app.common.state import add_log_entry
 from app.config import load_settings
 from app.core.download import detect_platform
-from app.core.enhance import EnhancePostProcessWorker, ffmpeg_available
+from app.common.concurrent import EnhancePostProcessWorker, PlaylistFetchWorker
+from app.core.ffmpeg.manager import ffmpeg_available
 from app.core.manager import DownloadJob, DownloadManager
-from app.core.scraper import PlaylistFetchWorker, fmt_duration, fmt_date
+from app.core.scraper import fmt_duration, fmt_date
 from app.ui.components import (
     CardHeader,
     DownloadConfigCard,
@@ -964,8 +965,20 @@ class DownloaderView(QFrame):
         self._job_progress.pop(job_id, None)
         opts = self._enhance_job_options.pop(job_id, None)
         if opts and success and filepath and opts.has_edits() and ffmpeg_available():
+            if not os.path.isfile(filepath):
+                # Final path was a merged file — try to find it by stripping fragment suffix
+                import re as _re
+                candidate = _re.sub(r'\.f\d+\.[a-z0-9]+$', '', filepath, flags=_re.IGNORECASE)
+                if os.path.isfile(candidate):
+                    filepath = candidate
+                else:
+                    self._tooltip_done += 1
+                    add_log_entry("warning", f"Enhance skipped: output file not found ({filepath})")
+                    return
             base, ext = os.path.splitext(filepath)
-            ext = ext or ".mp4"
+            # Always encode enhanced output to mp4 — libx264 is incompatible with
+            # webm/flv/ts containers that yt-dlp may produce.
+            ext = ".mp4"
             if opts.keep_original:
                 dirname = os.path.dirname(filepath)
                 base_name = os.path.basename(filepath)

@@ -5,9 +5,10 @@ import sys
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QIcon
 from PyQt5.QtWidgets import QApplication
-from qfluentwidgets import Theme, setTheme, setThemeColor, FluentIcon, InfoBar, InfoBarPosition, SplashScreen
+from qfluentwidgets import Theme, setTheme, setThemeColor, FluentIcon, InfoBar, InfoBarPosition, SplashScreen, qconfig
+from app import bootstrap
 
-from app.common.paths import PROJECT_ROOT
+from app.common.paths import PROJECT_ROOT, APPDATA_DIR
 from app.common.i18n import apply_language, LANGUAGES
 from app.config import load_settings
 from app.ui.main_window import MainWindow
@@ -50,6 +51,9 @@ def main() -> int:
     _locale_str = LANGUAGES.get(_lang_pref, "")
     apply_language(_locale_str)
 
+    # Redirect QFluentWidgets internal config to AppData/ so config/ folder is not needed.
+    qconfig.FILE = APPDATA_DIR / "config.json"
+
     s = load_settings()
     theme_name = s.get("theme", "Dark")
     theme_color = s.get("theme_color", "#0078D4")
@@ -84,6 +88,8 @@ def main() -> int:
 
         _checker.update_found.connect(_on_update_found)
         QTimer.singleShot(1500, _checker.start)
+
+    bootstrap.initialize()
 
     return app.exec_()
 

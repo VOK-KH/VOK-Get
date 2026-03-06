@@ -18,6 +18,7 @@ dependencies = [
     "apscheduler>=3.11.2",
     "pyqtwebengine>=5.15.7",
     "translate-toolkit>=3.19.2",
+    "imageio-ffmpeg>=0.6.0",
 ]
 
 [project.optional-dependencies]

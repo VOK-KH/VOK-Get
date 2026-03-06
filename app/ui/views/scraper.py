@@ -30,12 +30,14 @@ from qfluentwidgets import (
 
 from app.common.state import add_log_entry
 from app.config import load_settings
-from app.core.scraper import (
+from app.common.concurrent import (
     CommentsWorker,
     MetaFetchWorker,
     SearchWorker,
     TranslateWorker,
-    _SEARCH_PREFIXES,
+)
+from app.common.concurrent.scraper_workers import _SEARCH_PREFIXES
+from app.core.scraper import (
     fmt_date,
     fmt_duration,
     fmt_num,

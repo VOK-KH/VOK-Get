@@ -4,6 +4,7 @@ from .dashboard import DashboardView
 from .downloader import DownloaderView
 from .logs import LogsView
 from .settings import SettingsView
+from .task_interface import TaskInterface
 from .vok_studio import VokStudioView
 
-__all__ = ["DashboardView", "DownloaderView", "LogsView", "SettingsView", "VokStudioView"]
+__all__ = ["DashboardView", "DownloaderView", "LogsView", "SettingsView", "TaskInterface", "VokStudioView"]

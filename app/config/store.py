@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from app.common.paths import get_config_dir, get_default_downloads_dir
+from app.common.paths import get_config_dir, get_default_downloads_dir, PROJECT_ROOT
 
 
 def _settings_path() -> Path:
@@ -11,6 +11,9 @@ def _settings_path() -> Path:
 
 
 SETTINGS_PATH = _settings_path()
+
+# Legacy path: vok_settings.json was previously saved at the project root.
+_LEGACY_SETTINGS_PATH = PROJECT_ROOT / "vok_settings.json"
 
 
 def is_first_run() -> bool:
@@ -61,8 +64,22 @@ def get_default_settings() -> dict:
     return _DEFAULTS.copy()
 
 
+def _migrate_legacy_settings() -> None:
+    
+    dest = _settings_path()
+    if dest.exists() or not _LEGACY_SETTINGS_PATH.exists():
+        return
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(_LEGACY_SETTINGS_PATH.read_bytes())
+        _LEGACY_SETTINGS_PATH.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def load_settings() -> dict:
-    """Load settings from config file."""
+    """Load settings from config file (migrates legacy root path on first call)."""
+    _migrate_legacy_settings()
     path = _settings_path()
     if not path.exists():
         return _DEFAULTS.copy()

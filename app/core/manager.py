@@ -6,7 +6,7 @@ from queue import Empty, Queue
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from app.config import load_settings
-from app.core.download import DownloadWorker
+from app.common.concurrent import DownloadWorker
 
 
 class DownloadJob:
