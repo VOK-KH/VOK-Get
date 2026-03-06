@@ -37,6 +37,8 @@ _DEFAULTS = {
     "sound_alert_on_complete": True,
     "sound_alert_on_error": True,
     "auto_update_on_start": True,
+    "auto_reset_link_before_download": True,
+    "enhance_keep_original": True,
 }
 
 
