@@ -844,6 +844,16 @@ class DownloaderView(QFrame):
             self._progress.setVisible(False)
         if self._progress_pct_label is not None:
             self._progress_pct_label.setVisible(False)
+
+        if s.get("auto_reset_link_before_download", True):
+            mode = self._mode_segmented.currentRouteKey()
+            if mode == "bulk":
+                self._bulk_edit.clear()
+            elif mode == "enhance":
+                self._enhance_card.set_url("")
+            else:
+                self._url_edit.clear()
+
         self._update_controls()
 
     def _update_header_progress(self) -> None:

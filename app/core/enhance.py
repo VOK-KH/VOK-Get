@@ -16,33 +16,107 @@ def ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
+def _ar_filter_steps(opts: "EnhanceOptions", in_node: str, out_node: str) -> list[str]:
+    """Return filter_complex steps for aspect ratio conversion.
+
+    Returns an empty list when no AR change is needed (aspect_ratio == 'original').
+    - blur:    scales source to fill frame (blurred), then overlays original centred
+    - color:   pads with a solid colour (hex from opts.bg_color)
+    - stretch: scales source to fill frame (distorted)
+    """
+    ar = getattr(opts, "aspect_ratio", "original")
+    if ar == "original":
+        return []
+
+    _RATIOS = {"16:9": (16, 9), "9:16": (9, 16), "4:3": (4, 3), "1:1": (1, 1)}
+    if ar not in _RATIOS:
+        return []
+
+    tw, th = _RATIOS[ar]
+    # Output dimensions: smallest rectangle with target AR that contains source
+    # Using ffmpeg expressions (evaluated at filter run-time with original iw/ih)
+    ow = f"max(iw\\,ceil(ih*{tw}/{th}/2)*2)"
+    oh = f"max(ih\\,ceil(iw*{th}/{tw}/2)*2)"
+
+    bg_type = getattr(opts, "bg_type", "blur")
+    hex_color = getattr(opts, "bg_color", "#000000").lstrip("#") or "000000"
+
+    if bg_type == "stretch":
+        return [f"{in_node}scale={ow}:{oh}[{out_node}]"]
+
+    if bg_type == "color":
+        return [
+            f"{in_node}pad={ow}:{oh}:(ow-iw)/2:(oh-ih)/2:color=0x{hex_color}[{out_node}]"
+        ]
+
+    # blur (default): scale stretched + boxblur as background, overlay original centred
+    return [
+        f"{in_node}split=2[_ar_fg][_ar_bg]",
+        f"[_ar_bg]scale={ow}:{oh},boxblur=15:5[_ar_bgblur]",
+        f"[_ar_bgblur][_ar_fg]overlay=(W-w)/2:(H-h)/2[{out_node}]",
+    ]
+
+
 def _build_video_filters(opts: "EnhanceOptions", has_logo: bool) -> str:
-    """Build -filter_complex video part. Returns the filter string for [0:v] (and optionally [1:v] for logo)."""
-    parts: list[str] = []
-    # Optional flip
+    """Build -filter_complex video part. Returns the filter string for [0:v] (and optionally [1:v] for logo).
+
+    Flip is applied to the source video BEFORE logo overlay so the logo is
+    never mirrored. Color and speed are applied to the composite afterwards.
+    """
+    # ── Flip (source-only) ────────────────────────────────────────────────
+    flip_parts: list[str] = []
     if opts.flip == "horizontal":
-        parts.append("hflip")
+        flip_parts.append("hflip")
     elif opts.flip == "vertical":
-        parts.append("vflip")
+        flip_parts.append("vflip")
     elif opts.flip == "both":
-        parts.append("hflip,vflip")
-    # Color: map -100..100 to eq. brightness -0.5..0.5, contrast 0.5..1.5, saturation 0.5..1.5
+        flip_parts.append("hflip,vflip")
+    flip_filter = ",".join(flip_parts)  # "" if no flip
+
+    # ── Color + speed (applied after overlay) ────────────────────────────
+    post_parts: list[str] = []
     b = opts.brightness / 200.0
     c = 1.0 + opts.contrast / 200.0
     s = 1.0 + opts.saturation / 200.0
     if b != 0 or c != 1.0 or s != 1.0:
-        parts.append(f"eq=brightness={b}:contrast={c}:saturation={s}")
-    # Speed
+        post_parts.append(f"eq=brightness={b}:contrast={c}:saturation={s}")
     if opts.speed != 1.0:
-        parts.append(f"setpts={1.0 / opts.speed}*PTS")
-    base_vf = ",".join(parts) if parts else "copy"
+        post_parts.append(f"setpts={1.0 / opts.speed}*PTS")
+    post_filter = ",".join(post_parts)  # "" if no color/speed changes
 
     if not has_logo:
-        return f"[0:v]{base_vf}[vout]" if base_vf != "copy" else "[0:v]copy[vout]"
+        # No logo — check whether we need AR conversion
+        ar_steps = _ar_filter_steps(opts, "[0:v]", "v_ar")
+        if ar_steps:
+            # Need filter_complex even without logo
+            steps: list[str] = []
+            cur = "[0:v]"
+            if flip_filter:
+                steps.append(f"[0:v]{flip_filter}[vflip]")
+                cur = "[vflip]"
+            steps.extend(_ar_filter_steps(opts, cur, "v_ar"))
+            cur = "[v_ar]"
+            if post_filter:
+                steps.append(f"{cur}{post_filter}[vout]")
+            else:
+                steps.append(f"{cur}copy[vout]")
+            return ";".join(steps)
+        # No AR change — simple single-filter vf chain
+        all_parts = flip_parts + post_parts
+        vf = ",".join(all_parts) if all_parts else "copy"
+        return f"[0:v]{vf}[vout]"
 
-    # With logo: scale logo (max height 120px), overlay at position, then apply rest
+    # ── With logo ─────────────────────────────────────────────────────────
+    # Step 1: flip source only → [vsrc]
+    # Step 2: scale logo       → [logo]
+    # Step 3: overlay logo on flipped source → [v1]
+    # Step 4: apply color / speed to composite → [vout]
     pos = opts.logo_position
-    if pos == "left":
+    if pos == "custom":
+        logo_x = max(0, getattr(opts, "logo_x", 10))
+        logo_y = max(0, getattr(opts, "logo_y", 10))
+        overlay_xy = f"{logo_x}:{logo_y}"
+    elif pos == "left":
         overlay_xy = "10:10"
     elif pos == "right":
         overlay_xy = "main_w-overlay_w-10:10"
@@ -50,12 +124,31 @@ def _build_video_filters(opts: "EnhanceOptions", has_logo: bool) -> str:
         overlay_xy = "(main_w-overlay_w)/2:10"
     else:
         overlay_xy = "(main_w-overlay_w)/2:(main_h-overlay_h)/2"
-    logo_scale = "[1:v]scale=-1:120[logo]"
-    overlay = f"[0:v][logo]overlay={overlay_xy}[v1]"
-    if base_vf and base_vf != "copy":
-        rest = f"[v1]{base_vf}[vout]"
-        return f"{logo_scale};{overlay};{rest}"
-    return f"{logo_scale};{overlay};[v1]copy[vout]"
+
+    logo_h = max(10, getattr(opts, "logo_size", 120))
+    logo_scale = f"[1:v]scale=-1:{logo_h}[logo]"
+    src_node = "[0:v]"
+
+    steps: list[str] = [logo_scale]
+
+    if flip_filter:
+        steps.append(f"{src_node}{flip_filter}[vsrc]")
+        src_node = "[vsrc]"
+
+    # Apply aspect ratio AFTER flip, BEFORE logo overlay
+    ar_steps = _ar_filter_steps(opts, src_node, "varat")
+    if ar_steps:
+        steps.extend(ar_steps)
+        src_node = "[varat]"
+
+    steps.append(f"{src_node}[logo]overlay={overlay_xy}[v1]")
+
+    if post_filter:
+        steps.append(f"[v1]{post_filter}[vout]")
+    else:
+        steps.append("[v1]copy[vout]")
+
+    return ";".join(steps)
 
 
 def run_enhance(
