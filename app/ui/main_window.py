@@ -128,6 +128,11 @@ class MainWindow(MSFluentWindow):
         # Check if this is a forced shutdown (Alt+F4, X button with Shift, etc.)
         modifiers = QApplication.keyboardModifiers()
         
+        # Load settings to check close-to-tray behavior
+        from app.config import load_settings
+        settings = load_settings()
+        close_to_tray = settings.get("close_to_system_tray", True)
+        
         if modifiers & Qt.ShiftModifier:
             # Force exit when Shift is held during close - show confirmation
             if self.exit_handler and self.exit_handler.request_exit_with_confirmation(self, "shift_close"):
@@ -137,10 +142,19 @@ class MainWindow(MSFluentWindow):
                 event.ignore()
                 self.hide()
         else:
-            # Normal close - hide to system tray (no confirmation needed)
-            self.logger.info("Window closed, hiding to system tray")
-            event.ignore()
-            self.hide()
+            # Normal close behavior based on settings
+            if close_to_tray:
+                # Hide to system tray (default behavior)
+                self.logger.info("Window closed, hiding to system tray")
+                event.ignore()
+                self.hide()
+            else:
+                # Exit application directly (with confirmation if enabled)
+                if self.exit_handler and self.exit_handler.request_exit_with_confirmation(self, "window_close"):
+                    event.accept()
+                else:
+                    # User cancelled exit, stay open
+                    event.ignore()
 
     def onExit(self):
         """Perform application exit using the centralized exit handler."""

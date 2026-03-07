@@ -10,12 +10,13 @@ import threading
 import time
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtCore import QThread
+from PyQt5.QtCore import QThread, QCoreApplication
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtSql import QSqlDatabase
 from qfluentwidgets import MessageBox
 
 from app.common.logger import Logger
+from app.config import load_settings
 
 if TYPE_CHECKING:
     from app.ui.main_window import MainWindow
@@ -28,6 +29,10 @@ class ExitHandler:
         self.main_window = main_window
         self.logger = Logger("exit_handler")
         self._shutdown_in_progress = False
+    
+    def tr(self, text: str) -> str:
+        """Translation method that uses QCoreApplication for i18n support."""
+        return QCoreApplication.translate("SettingsView", text)
     
     def request_exit_with_confirmation(self, parent=None, reason: str = "user_request") -> bool:
         """
@@ -44,19 +49,28 @@ class ExitHandler:
             self.logger.info("Exit already in progress, ignoring request")
             return True
             
+        # Check if confirmation is enabled in settings
+        settings = load_settings()
+        show_confirmation = settings.get("exit_confirmation", True)
+        
+        if not show_confirmation:
+            self.logger.info(f"Exit requested without confirmation: {reason}")
+            self.perform_exit()
+            return True
+            
         self.logger.info(f"Exit confirmation requested: {reason}")
         
         # Use main window as default parent
         dialog_parent = parent or self.main_window
         
         reply = MessageBox(
-            "Exit Application", 
-            "Are you sure you want to exit VOK completely?\n\n"
-            "This will close all downloads and background processes.",
+            self.tr("Exit Application"), 
+            self.tr("Are you sure you want to exit VOK completely?\n\n"
+                   "This will close all downloads and background processes."),
             dialog_parent
         )
-        reply.yesButton.setText("Exit")
-        reply.cancelButton.setText("Cancel")
+        reply.yesButton.setText(self.tr("Exit"))
+        reply.cancelButton.setText(self.tr("Cancel"))
         
         if reply.exec() == MessageBox.MessageBoxAction.Yes:
             self.logger.info("User confirmed application exit")
@@ -224,6 +238,10 @@ class ExitHandler:
         """Ensure the application quits, with fallback to force exit."""
         self.logger.info("Initiating application shutdown...")
         
+        # Get timeout from settings
+        settings = load_settings()
+        timeout_seconds = settings.get("exit_timeout_seconds", 3)
+        
         # First try normal quit
         app = QApplication.instance()
         if app:
@@ -234,9 +252,9 @@ class ExitHandler:
             
             # Start force exit timer in background
             def force_exit_timer():
-                time.sleep(2)  # Wait 2 seconds
+                time.sleep(timeout_seconds)  # Use configurable timeout
                 if app and not app.closingDown():
-                    self.logger.warning("Force exiting application...")
+                    self.logger.warning(f"Force exiting application after {timeout_seconds}s timeout...")
                     sys.exit(0)
             
             force_thread = threading.Thread(target=force_exit_timer, daemon=True)
