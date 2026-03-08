@@ -10,7 +10,6 @@ from PyQt5.QtWidgets import (
     QColorDialog,
     QDialog,
     QFileDialog,
-    QGridLayout,
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
@@ -29,9 +28,7 @@ from qfluentwidgets import (
     PushButton,
     SettingCard,
     SettingCardGroup,
-    Slider,
     SwitchButton,
-    TitleLabel,
 )
 
 from app.ui.components import CardHeader
@@ -75,90 +72,6 @@ SPEED_OPTIONS = ["0.5x", "0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"]
 SPEED_VALUES = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 ASPECT_RATIO_OPTIONS = ["Original", "16:9", "9:16", "4:3", "1:1"]
 BG_TYPE_OPTIONS = ["Blur", "Color", "Stretch"]
-
-
-# ── Color adjust popup ────────────────────────────────────────────────────────
-
-class ColorAdjustDialog(QDialog):
-    """Modal popup for brightness / contrast / saturation sliders."""
-
-    def __init__(self, brightness: int, contrast: int, saturation: int, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Color Adjustment")
-        self.setModal(True)
-        self.setMinimumWidth(400)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 20)
-        root.setSpacing(16)
-
-        title = TitleLabel("Color Adjustment", self)
-        root.addWidget(title)
-
-        sub = BodyLabel("Adjust brightness, contrast and saturation for the output video.", self)
-        sub.setWordWrap(True)
-        root.addWidget(sub)
-        root.addSpacing(4)
-
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(14)
-
-        def _make_row(label: str, value: int, row: int):
-            lbl = BodyLabel(label, self)
-            slider = Slider(Qt.Horizontal, self)
-            slider.setRange(-100, 100)
-            slider.setValue(value)
-            slider.setMinimumWidth(200)
-            val_lbl = BodyLabel(str(value), self)
-            val_lbl.setFixedWidth(36)
-            slider.valueChanged.connect(lambda v, l=val_lbl: l.setText(str(v)))
-            grid.addWidget(lbl, row, 0)
-            grid.addWidget(slider, row, 1)
-            grid.addWidget(val_lbl, row, 2)
-            return slider
-
-        self._brightness_slider = _make_row("Brightness", brightness, 0)
-        self._contrast_slider = _make_row("Contrast", contrast, 1)
-        self._saturation_slider = _make_row("Saturation", saturation, 2)
-        root.addLayout(grid)
-
-        root.addSpacing(8)
-
-        # Reset + OK / Cancel
-        btn_row = QHBoxLayout()
-        reset_btn = PushButton("Reset", self)
-        reset_btn.setIcon(FluentIcon.SYNC)
-        reset_btn.clicked.connect(self._reset)
-        btn_row.addWidget(reset_btn)
-        btn_row.addStretch(1)
-
-        cancel_btn = PushButton("Cancel", self)
-        cancel_btn.clicked.connect(self.reject)
-        ok_btn = PrimaryPushButton("Apply", self)
-        ok_btn.clicked.connect(self.accept)
-        btn_row.addWidget(cancel_btn)
-        btn_row.addSpacing(8)
-        btn_row.addWidget(ok_btn)
-        root.addLayout(btn_row)
-
-    def _reset(self) -> None:
-        self._brightness_slider.setValue(0)
-        self._contrast_slider.setValue(0)
-        self._saturation_slider.setValue(0)
-
-    @property
-    def brightness(self) -> int:
-        return self._brightness_slider.value()
-
-    @property
-    def contrast(self) -> int:
-        return self._contrast_slider.value()
-
-    @property
-    def saturation(self) -> int:
-        return self._saturation_slider.value()
 
 
 # ── Enhance feature card ──────────────────────────────────────────────────────
@@ -418,6 +331,7 @@ class DownloadEnhanceFeature(QWidget):
         return f"B {self._brightness:+d}  /  C {self._contrast:+d}  /  S {self._saturation:+d}"
 
     def _open_color_dialog(self) -> None:
+        from app.ui.dialogs.color_adjust_dialog import ColorAdjustDialog  # lazy — avoids circular import
         dlg = ColorAdjustDialog(
             self._brightness, self._contrast, self._saturation, self.window()
         )

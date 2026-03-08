@@ -1,17 +1,11 @@
 # coding: utf-8
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
-from qfluentwidgets import FluentIcon, SegmentedWidget
+from PyQt5.QtCore import Qt
+
+from qfluentwidgets import SegmentedWidget
 
 from app.common.database import sqlRequest
 from app.common.database.entity import Task, TaskStatus
@@ -19,178 +13,29 @@ from app.common.signal_bus import signal_bus
 from app.config import load_settings
 from app.ui.utils import format_size
 from app.common.speed_badge import SpeedBadge
-from ..components.empty_status_widget import EmptyStatusWidget
+from ..components.active_badge import ActiveBadge
 from ..components.interface import Interface
 from ..components.task_card import (
-    DeleteTaskDialog,
     EnhanceJobCard,
     FailedTaskCard,
     LiveDownloadingTaskCard,
     SuccessTaskCard,
-    TaskCardBase,
     VODDownloadProgressInfo,
     VODDownloadingTaskCard,
 )
+from ..components.task_card_view import (
+    DownloadingTaskView,
+    EnhancingTaskView,
+    FailedTaskView,
+    SuccessTaskView,
+)
+from ..components.task_stacked_widget import TaskStackedWidget
 
 
 # ── Card list view ─────────────────────────────────────────────────────────────
 
-_EMPTY_CONFIGS = {
-    "downloading": (FluentIcon.DOWNLOAD,   "No active downloads"),
-    "enhancing":   (FluentIcon.SPEED_HIGH, "No active enhance tasks"),
-    "finished":    (FluentIcon.COMPLETED,  "Nothing finished yet"),
-    "failed":      (FluentIcon.INFO,       "No failed tasks"),
-}
-
-
-class TaskCardView(QWidget):
-    """Vertically stacked list of task cards with a per-tab empty-state widget."""
-
-    cardCountChanged = pyqtSignal(int)
-
-    def __init__(self, tab_key: str = "", parent=None):
-        super().__init__(parent)
-        icon, text = _EMPTY_CONFIGS.get(tab_key, (FluentIcon.INFO, "No tasks"))
-        self._empty = EmptyStatusWidget(icon, text, self)
-        self._empty.setMinimumWidth(200)
-
-        self._vbox = QVBoxLayout(self)
-        self._vbox.setSpacing(8)
-        self._vbox.setContentsMargins(30, 0, 30, 0)
-        self._vbox.setAlignment(Qt.AlignTop)
-        self._vbox.addWidget(self._empty, 0, Qt.AlignHCenter)
-
-        self._cards: list = []
-        self._card_map: Dict[str, object] = {}  # card_id → card (O(1) lookup)
-
-    def add_card(self, card, card_id: str) -> None:
-        if not self._cards:
-            self._empty.hide()
-        self._vbox.insertWidget(0, card, 0, Qt.AlignTop)
-        card.show()
-        self._cards.insert(0, card)
-        self._card_map[card_id] = card
-        self.cardCountChanged.emit(len(self._cards))
-
-    def find_card(self, card_id: str):
-        return self._card_map.get(card_id)
-
-    def remove_card_by_id(self, card_id: str) -> None:
-        card = self._card_map.pop(card_id, None)
-        if card is None:
-            return
-        if card in self._cards:
-            self._cards.remove(card)
-        self._vbox.removeWidget(card)
-        card.hide()
-        card.deleteLater()
-        if not self._cards:
-            self._empty.show()
-        self.cardCountChanged.emit(len(self._cards))
-
-    def take_card(self, card_id: str):
-        """Remove without destroying — used to move a card between views."""
-        card = self._card_map.pop(card_id, None)
-        if card is None:
-            return None
-        self._cards.remove(card)
-        self._vbox.removeWidget(card)
-        if not self._cards:
-            self._empty.show()
-        self.cardCountChanged.emit(len(self._cards))
-        return card
-
-    def count(self) -> int:
-        return len(self._cards)
-
-
-# ── Specialised per-tab views ──────────────────────────────────────────────────
-
-class DownloadingTaskView(TaskCardView):
-    def __init__(self, parent=None):
-        super().__init__("downloading", parent)
-        self.setObjectName("downloading")
-
-
-class SuccessTaskView(TaskCardView):
-    def __init__(self, parent=None):
-        super().__init__("finished", parent)
-        self.setObjectName("finished")
-        sqlRequest(
-            "taskService", "listBy", self._load_tasks,
-            status=TaskStatus.SUCCESS, orderBy="createTime", asc=True,
-        )
-
-    def _load_tasks(self, tasks: List[Task]) -> None:
-        if not tasks:
-            return
-        for task in tasks:
-            card = SuccessTaskCard(task, self)
-            card.deleted.connect(lambda t: self.remove_card_by_id(t.id))
-            self.add_card(card, task.id)
-
-
-class FailedTaskView(TaskCardView):
-    def __init__(self, parent=None):
-        super().__init__("failed", parent)
-        self.setObjectName("failed")
-        sqlRequest(
-            "taskService", "listBy", self._load_tasks,
-            status=TaskStatus.FAILED, orderBy="createTime", asc=True,
-        )
-
-    def _load_tasks(self, tasks: List[Task]) -> None:
-        if not tasks:
-            return
-        for task in tasks:
-            card = FailedTaskCard(task, self)
-            card.deleted.connect(lambda t: self.remove_card_by_id(t.id))
-            self.add_card(card, task.id)
-
-
-class EnhancingTaskView(TaskCardView):
-    def __init__(self, parent=None):
-        super().__init__("enhancing", parent)
-        self.setObjectName("enhancing")
-
-
-# ── Stacked widget with page-aware size hints ──────────────────────────────────
-
-class TaskStackedWidget(QStackedWidget):
-    """Delegates size hints to the visible page so the parent scroll area sizes correctly."""
-
-    def sizeHint(self):
-        return self.currentWidget().sizeHint()
-
-    def minimumSizeHint(self):
-        return self.currentWidget().minimumSizeHint()
-
-
-# ── Active-jobs badge ──────────────────────────────────────────────────────────
-
-class _ActiveBadge(QLabel):
-    """Small pill showing active (downloading + enhancing) job count."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAlignment(Qt.AlignCenter)
-        self.setFixedSize(22, 22)
-        self.hide()
-
-    def set_count(self, n: int) -> None:
-        if n > 0:
-            self.setText(str(n))
-            self.setStyleSheet(
-                "QLabel { background: #FF5252; color: white; border-radius: 11px;"
-                " font-size: 10px; font-weight: 700; }"
-            )
-            self.show()
-        else:
-            self.hide()
-
 
 # ── Main interface ─────────────────────────────────────────────────────────────
-
 class TaskInterface(Interface):
     """Unified job tracker: Downloading / Enhancing / Finished / Failed tabs."""
 
@@ -235,10 +80,8 @@ class TaskInterface(Interface):
         self.pivot.addItem(self._TAB_FAILED,   self.tr("Failed"),      lambda: self.stackedWidget.setCurrentWidget(self._failed_view))
         self.pivot.setCurrentItem(self._TAB_DL)
 
-        self._active_badge = _ActiveBadge(self)
+        self._active_badge = ActiveBadge(self)
 
-        # vBoxLayout (non-scrolling header): title (added by Interface) + pivot
-        # viewLayout (scrollable content): stacked widget
         self.setViewportMargins(0, 140, 0, 10)
         self.vBoxLayout.addWidget(self.pivot, 0, Qt.AlignLeft)
         self.viewLayout.addWidget(self.stackedWidget)

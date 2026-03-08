@@ -13,7 +13,7 @@ from app.common.exit_app import initialize_exit_handler, ExitHandler
 from app.config import load_settings
 from ..common.icon import Icon
 from ..common import resource
-from .views import BatchEnhanceInterface, CliperInterface, DashboardView, DownloaderView, M3u8Interface, SettingsView, TaskInterface
+from .views import BatchEnhanceInterface, CliperInterface, DashboardView, DownloaderView, M3u8Interface, SettingsView, TaskInterface, AboutInterface
 from app.ui.components.system_tray_icon import SystemTrayIcon
 class MainWindow(MSFluentWindow):
     """Fluent-style window with download and analytics tools."""
@@ -37,6 +37,7 @@ class MainWindow(MSFluentWindow):
         self.systemTrayIcon = SystemTrayIcon(self)
         # self.studio = VokStudioView(self)
         # self.logs = LogsView(self)
+        self.about = AboutInterface(self)
         self.settings = SettingsView(self)
 
         self.addSubInterface(self.dashboard, FluentIcon.HOME, "Home")
@@ -46,6 +47,12 @@ class MainWindow(MSFluentWindow):
         self.addSubInterface(self.m3u8Download, FluentIcon.LINK, "M3U8")
         self.addSubInterface(self.taskInterface, Icon.CLOUD_DOWNLOAD, "Tasks")
 
+        self.addSubInterface(
+            self.about,
+            FluentIcon.INFO,
+            "About",
+            position=NavigationItemPosition.BOTTOM,
+        )
         self.addSubInterface(
             self.settings,
             FluentIcon.SETTING,
@@ -58,6 +65,8 @@ class MainWindow(MSFluentWindow):
             self.switchTo(self.dashboard)
         elif default_page == "Settings":
             self.switchTo(self.settings)
+        elif default_page == "About":
+            self.switchTo(self.about)
         else:
             self.switchTo(self.downloader)
 

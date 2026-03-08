@@ -9,6 +9,7 @@ from .m3u8_interface import M3u8Interface
 from .settings import SettingsView
 from .task_interface import TaskInterface
 from .vok_studio import VokStudioView
+from .about_interface import AboutInterface
 
 __all__ = [
     "BatchEnhanceInterface",
@@ -20,4 +21,5 @@ __all__ = [
     "SettingsView",
     "TaskInterface",
     "VokStudioView",
+    "AboutInterface",
 ]

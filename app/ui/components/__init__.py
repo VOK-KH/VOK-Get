@@ -2,6 +2,7 @@
 
 __version__ = "0.1.0"
 
+from .active_badge import ActiveBadge
 from .batch_enhance_table import BatchEnhanceTable
 from .card_header import CardHeader
 from .dashboard_feature_card import DashboardFeatureCard
@@ -12,8 +13,17 @@ from .download_path_panel import DownloadPathPanel
 from .download_table_card import DownloadTableCard
 from .DownloadPowerSettingCard import DownloadConfigCard
 from .status_table import StatusTable
+from .task_card_view import (
+    DownloadingTaskView,
+    EnhancingTaskView,
+    FailedTaskView,
+    SuccessTaskView,
+    TaskCardView,
+)
+from .task_stacked_widget import TaskStackedWidget
 
 __all__ = [
+    "ActiveBadge",
     "BatchEnhanceTable",
     "CardHeader",
     "DashboardFeatureCard",
@@ -21,8 +31,14 @@ __all__ = [
     "DashboardInstructionsCard",
     "DownloadConfigCard",
     "DownloadEnhanceFeature",
+    "DownloadingTaskView",
     "DownloadPathPanel",
     "DownloadTableCard",
+    "EnhancingTaskView",
     "EnhanceOptions",
+    "FailedTaskView",
     "StatusTable",
+    "SuccessTaskView",
+    "TaskCardView",
+    "TaskStackedWidget",
 ]
