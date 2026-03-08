@@ -362,12 +362,13 @@ class BatchEnhanceInterface(BaseView):
         st = self._statuses.get(path, (ST_PENDING, ""))[0]
 
         menu = RoundMenu(title="", parent=self)
-        menu.addAction(Action(FIF.PLAY,   self.tr("Enhance this file"), triggered=lambda: self._enqueue_single(path)))
-        if st in (ST_ERROR, ST_DONE):
-            menu.addAction(Action(FIF.SYNC, self.tr("Retry"),            triggered=lambda: self._enqueue_single(path)))
-        menu.addAction(Action(FIF.FOLDER, self.tr("Open folder"),        triggered=lambda: self._open_folder(path)))
+        if st != ST_DONE:
+            menu.addAction(Action(FIF.PLAY, self.tr("Enhance this file"), triggered=lambda: self._enqueue_single(path)))
+        if st == ST_ERROR:
+            menu.addAction(Action(FIF.SYNC, self.tr("Retry"),             triggered=lambda: self._enqueue_single(path)))
+        menu.addAction(Action(FIF.FOLDER, self.tr("Open folder"),         triggered=lambda: self._open_folder(path)))
         menu.addSeparator()
-        menu.addAction(Action(FIF.DELETE, self.tr("Remove from list"),   triggered=lambda: self._remove_row(global_idx)))
+        menu.addAction(Action(FIF.DELETE, self.tr("Remove from list"),    triggered=lambda: self._remove_row(global_idx)))
         menu.exec_(self._table_widget.table.viewport().mapToGlobal(pos))
 
     def _enqueue_single(self, path: str) -> None:
