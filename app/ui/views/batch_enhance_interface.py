@@ -1,4 +1,4 @@
-"""Batch Enhance interface — CommandBar + video table + Enhance dialog."""
+"""Batch Enhance view — orchestrates CommandBar, table widget, and worker queue."""
 
 from __future__ import annotations
 
@@ -6,151 +6,53 @@ import math
 import os
 import subprocess
 import sys
+from collections import deque
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtWidgets import (
-    QAbstractItemView,
-    QDialog,
     QFileDialog,
-    QFormLayout,
     QHBoxLayout,
-    QHeaderView,
-    QStackedWidget,
-    QTableWidgetItem,
     QVBoxLayout,
-    QWidget,
 )
 from qfluentwidgets import (
     Action,
     BodyLabel,
     CaptionLabel,
     CommandBar,
-    ComboBox,
     FluentIcon as FIF,
-    PrimaryPushButton,
-    PushButton,
     RoundMenu,
-    SwitchButton,
-    TableWidget,
-    TitleLabel,
     ToolButton,
-    setCustomStyleSheet,
 )
 
-from app.ui.utils import format_size
+from app.common.signal_bus import signal_bus
+from app.common.concurrent.enhance_worker import EnhancePostProcessWorker
+from app.ui.components.batch_enhance_table import (
+    BatchEnhanceTable,
+    COL_DURATION,
+    COL_NAME,
+    COL_SIZE,
+    MAX_CONCURRENT,
+    PAGE_SIZE,
+    ST_DONE,
+    ST_ERROR,
+    ST_PENDING,
+    ST_QUEUED,
+    ST_RUNNING,
+    VIDEO_EXTENSIONS,
+)
+from app.ui.dialogs.enhance_setting_dialog import EnhanceSettingDialog
+from app.ui.helpers.batch_enhance import (
+    build_output_path,
+    options_from_settings,
+    probe_video_meta,
+)
 
 from .base import BaseView
 
 
-_VIDEO_EXT = {".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v", ".wmv", ".flv"}
-_PAGE_SIZE = 50
-
-# Column indices
-_COL_IDX      = 0
-_COL_NAME     = 1
-_COL_SIZE     = 2
-_COL_STATUS   = 3
-_COL_PROGRESS = 4
-
-_COLS = ["#", "File Name", "Size", "Status", "Progress"]
-
-_TABLE_QSS = "QTableView::item { padding-left: 8px; padding-right: 8px; }"
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Enhance settings dialog
-# ──────────────────────────────────────────────────────────────────────────────
-
-class EnhanceDialog(QDialog):
-    """Dialog for adjusting core enhancement options before starting."""
-
-    def __init__(self, selected_count: int = 0, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Enhance Settings")
-        self.setModal(True)
-        self.setFixedWidth(420)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
-        self._build(selected_count)
-
-    def _build(self, selected_count: int) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 20)
-        root.setSpacing(16)
-
-        title = TitleLabel("Enhance Settings", self)
-        root.addWidget(title)
-
-        sub_text = (
-            f"{selected_count} video(s) selected."
-            if selected_count > 0
-            else "No videos selected — will apply to all."
-        )
-        root.addWidget(BodyLabel(sub_text, self))
-
-        form = QFormLayout()
-        form.setSpacing(12)
-        form.setLabelAlignment(Qt.AlignRight)
-
-        # Upscale factor
-        self._scale_combo = ComboBox(self)
-        self._scale_combo.addItems(["None", "2×", "4×"])
-        form.addRow("Upscale:", self._scale_combo)
-
-        # Denoise level
-        self._denoise_combo = ComboBox(self)
-        self._denoise_combo.addItems(["None", "Light", "Medium", "Strong"])
-        form.addRow("Denoise:", self._denoise_combo)
-
-        # Stabilize
-        self._stabilize_switch = SwitchButton(self)
-        self._stabilize_switch.setChecked(False)
-        form.addRow("Stabilize:", self._stabilize_switch)
-
-        # Codec
-        self._codec_combo = ComboBox(self)
-        self._codec_combo.addItems(["H.264 (libx264)", "H.265 (libx265)", "VP9", "AV1"])
-        form.addRow("Output codec:", self._codec_combo)
-
-        # Quality (CRF)
-        self._quality_combo = ComboBox(self)
-        self._quality_combo.addItems(["High (CRF 18)", "Medium (CRF 23)", "Low (CRF 28)"])
-        self._quality_combo.setCurrentIndex(1)
-        form.addRow("Quality:", self._quality_combo)
-
-        root.addLayout(form)
-        root.addSpacing(8)
-
-        # Buttons
-        btn_row = QHBoxLayout()
-        btn_row.addStretch(1)
-        cancel_btn = PushButton("Cancel", self)
-        cancel_btn.clicked.connect(self.reject)
-        btn_row.addWidget(cancel_btn)
-        start_btn = PrimaryPushButton("Start Enhance", self)
-        start_btn.setIcon(FIF.PLAY)
-        start_btn.clicked.connect(self.accept)
-        btn_row.addWidget(start_btn)
-        root.addLayout(btn_row)
-
-    @property
-    def settings(self) -> dict:
-        """Return chosen settings as a dict (UI values, not wired to logic)."""
-        return {
-            "upscale":    self._scale_combo.currentText(),
-            "denoise":    self._denoise_combo.currentText(),
-            "stabilize":  self._stabilize_switch.isChecked(),
-            "codec":      self._codec_combo.currentText(),
-            "quality":    self._quality_combo.currentText(),
-        }
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Main view
-# ──────────────────────────────────────────────────────────────────────────────
-
 class BatchEnhanceInterface(BaseView):
-    """Batch Enhance: CommandBar + paginated video table (50/page) + Enhance dialog."""
+    """Batch Enhance: add videos → configure settings → run enhancement queue."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -158,8 +60,16 @@ class BatchEnhanceInterface(BaseView):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
 
-        self._videos: list[tuple[str, str, int]] = []  # (name, path, size)
+        # Video list: (display_name, abs_path, size_bytes, resolution, duration_secs)
+        self._videos: list[tuple[str, str, int, str, float]] = []
         self._current_page = 0
+        self._sort_col: int | None = None
+        self._sort_asc: bool = True
+
+        # Enhancement state
+        self._statuses: dict[str, tuple[str, str]] = {}   # path → (status, detail)
+        self._workers: dict[str, EnhancePostProcessWorker] = {}
+        self._queue: deque[str] = deque()
 
         self._build_ui()
 
@@ -174,28 +84,32 @@ class BatchEnhanceInterface(BaseView):
         self.cmd = CommandBar()
         self.cmd.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 
-        self.act_add_folder  = Action(FIF.FOLDER_ADD, self.tr("Add Folder"))
-        self.act_refresh     = Action(FIF.SYNC,       self.tr("Refresh"))
-        self.act_enhance     = Action(FIF.PLAY,       self.tr("Enhance"))
-        self.act_settings    = Action(FIF.SETTING,    self.tr("Settings"))
-        self.act_select_all  = Action(FIF.CHECKBOX,   self.tr("Select All"))
-        self.act_deselect    = Action(FIF.REMOVE,     self.tr("Deselect"))
-        self.act_remove      = Action(FIF.DELETE,     self.tr("Remove"))
-        self.act_clear       = Action(FIF.CLOSE,      self.tr("Clear All"))
+        self.act_add_files  = Action(FIF.ADD,        self.tr("Add Files"))
+        self.act_add_folder = Action(FIF.FOLDER_ADD, self.tr("Add Folder"))
+        self.act_enhance    = Action(FIF.PLAY,       self.tr("Start Enhance"))
+        self.act_stop       = Action(FIF.CANCEL,     self.tr("Stop All"))
+        self.act_settings   = Action(FIF.SETTING,    self.tr("Settings"))
+        self.act_select_all = Action(FIF.CHECKBOX,   self.tr("Select All"))
+        self.act_deselect   = Action(FIF.REMOVE,     self.tr("Deselect All"))
+        self.act_remove     = Action(FIF.DELETE,     self.tr("Remove"))
+        self.act_clear      = Action(FIF.CLOSE,      self.tr("Clear All"))
 
+        self.act_add_files.triggered.connect(self._on_add_files)
         self.act_add_folder.triggered.connect(self._on_add_folder)
-        self.act_refresh.triggered.connect(self._on_refresh)
         self.act_enhance.triggered.connect(self._on_enhance)
+        self.act_stop.triggered.connect(self._on_stop_all)
         self.act_settings.triggered.connect(self._on_enhance_settings)
         self.act_select_all.triggered.connect(self._on_select_all)
         self.act_deselect.triggered.connect(self._on_deselect_all)
         self.act_remove.triggered.connect(self._on_remove_selected)
         self.act_clear.triggered.connect(self._on_clear_all)
 
-        for act in (self.act_add_folder, self.act_refresh):
+        self.act_stop.setEnabled(False)
+
+        for act in (self.act_add_files, self.act_add_folder):
             self.cmd.addAction(act)
         self.cmd.addSeparator()
-        for act in (self.act_enhance, self.act_settings):
+        for act in (self.act_enhance, self.act_stop, self.act_settings):
             self.cmd.addAction(act)
         self.cmd.addSeparator()
         for act in (self.act_select_all, self.act_deselect):
@@ -209,51 +123,18 @@ class BatchEnhanceInterface(BaseView):
     # ── Table ─────────────────────────────────────────────────────────────────
 
     def _build_table(self, parent_layout: QVBoxLayout) -> None:
-        self._table_stack = QStackedWidget(self)
+        self._table_widget = BatchEnhanceTable(self)
 
-        # Empty state (index 0)
-        empty = QWidget()
-        empty_lay = QVBoxLayout(empty)
-        empty_lay.setAlignment(Qt.AlignCenter)
-        hint = BodyLabel(self.tr("No videos.  Click 'Add Folder' to load from a folder."), empty)
-        hint.setAlignment(Qt.AlignCenter)
-        empty_lay.addWidget(hint)
-        self._table_stack.addWidget(empty)
-
-        # Table (index 1)
-        self.table = TableWidget()
-        self.table.setColumnCount(len(_COLS))
-        self.table.setHorizontalHeaderLabels([self.tr(c) for c in _COLS])
-
-        hdr = self.table.horizontalHeader()
+        hdr = self._table_widget.table.horizontalHeader()
         if hdr:
-            hdr.setSectionResizeMode(_COL_IDX,      QHeaderView.ResizeMode.Fixed)
-            hdr.setSectionResizeMode(_COL_NAME,     QHeaderView.ResizeMode.Stretch)
-            hdr.setSectionResizeMode(_COL_SIZE,     QHeaderView.ResizeMode.Fixed)
-            hdr.setSectionResizeMode(_COL_STATUS,   QHeaderView.ResizeMode.Fixed)
-            hdr.setSectionResizeMode(_COL_PROGRESS, QHeaderView.ResizeMode.Fixed)
+            hdr.sectionClicked.connect(self._on_header_clicked)
 
-        self.table.setColumnWidth(_COL_IDX,      40)
-        self.table.setColumnWidth(_COL_SIZE,     100)
-        self.table.setColumnWidth(_COL_STATUS,   95)
-        self.table.setColumnWidth(_COL_PROGRESS, 100)
+        self._table_widget.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table_widget.table.customContextMenuRequested.connect(self._on_context_menu)
+        self._table_widget.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
+        self._table_widget.filesDropped.connect(self._on_files_dropped)
 
-        v = self.table.verticalHeader()
-        if v:
-            v.setVisible(False)
-
-        self.table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(TableWidget.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(TableWidget.SelectionMode.ExtendedSelection)
-        self.table.setBorderVisible(True)
-        self.table.setBorderRadius(8)
-        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.table.customContextMenuRequested.connect(self._on_context_menu)
-
-        setCustomStyleSheet(self.table, _TABLE_QSS, _TABLE_QSS)
-
-        self._table_stack.addWidget(self.table)
-        parent_layout.addWidget(self._table_stack, 1)
+        parent_layout.addWidget(self._table_widget, 1)
 
     # ── Footer ────────────────────────────────────────────────────────────────
 
@@ -265,9 +146,9 @@ class BatchEnhanceInterface(BaseView):
         self.status_label = BodyLabel(self.tr("0 video(s)"))
         footer.addWidget(self.status_label)
 
-        hint = CaptionLabel(self.tr("Double-click to view details"))
-        hint.setStyleSheet("color: gray;")
-        footer.addWidget(hint)
+        self.selected_label = CaptionLabel("")
+        self.selected_label.setStyleSheet("color: gray;")
+        footer.addWidget(self.selected_label)
 
         footer.addStretch()
 
@@ -288,74 +169,215 @@ class BatchEnhanceInterface(BaseView):
 
     # ── CommandBar handlers ───────────────────────────────────────────────────
 
+    def _on_files_dropped(self, paths: list[str]) -> None:
+        existing = {p for _, p, *_ in self._videos}
+        added = False
+        for resolved in paths:
+            if resolved not in existing:
+                p = Path(resolved)
+                res, dur = probe_video_meta(resolved)
+                self._videos.append((p.name, resolved, p.stat().st_size, res, dur))
+                existing.add(resolved)
+                added = True
+        if added:
+            self._current_page = 0
+            self._refresh_table()
+
+    def _on_add_files(self) -> None:
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            self.tr("Select video files"),
+            "",
+            "Videos (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.wmv *.flv);;All files (*)",
+        )
+        if not files:
+            return
+        existing = {p for _, p, *_ in self._videos}
+        for f in files:
+            p = Path(f)
+            resolved = str(p.resolve())
+            if resolved not in existing and p.suffix.lower() in VIDEO_EXTENSIONS:
+                res, dur = probe_video_meta(resolved)
+                self._videos.append((p.name, resolved, p.stat().st_size, res, dur))
+                existing.add(resolved)
+        self._current_page = 0
+        self._refresh_table()
+
     def _on_add_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Select folder with videos")
+        folder = QFileDialog.getExistingDirectory(self, self.tr("Select folder with videos"))
         if not folder:
             return
-        existing_paths = {p for _, p, _ in self._videos}
-        new_items = [
-            (p.name, str(p.resolve()), p.stat().st_size)
-            for p in Path(folder).iterdir()
-            if p.is_file() and p.suffix.lower() in _VIDEO_EXT
-            and str(p.resolve()) not in existing_paths
-        ]
+        existing = {p for _, p, *_ in self._videos}
+        new_items = []
+        for p in Path(folder).iterdir():
+            resolved = str(p.resolve())
+            if p.is_file() and p.suffix.lower() in VIDEO_EXTENSIONS and resolved not in existing:
+                res, dur = probe_video_meta(resolved)
+                new_items.append((p.name, resolved, p.stat().st_size, res, dur))
         self._videos.extend(new_items)
         self._current_page = 0
         self._refresh_table()
 
-    def _on_refresh(self) -> None:
-        self._refresh_table()
-
     def _on_enhance(self) -> None:
-        selected_rows = self.table.selectionModel().selectedRows()
-        dlg = EnhanceDialog(selected_count=len(selected_rows), parent=self)
-        dlg.exec_()
+        if not self._videos:
+            return
+        selected_rows = {idx.row() for idx in self._table_widget.table.selectionModel().selectedRows()}
+        page_start = self._current_page * PAGE_SIZE
+        paths = (
+            [self._videos[page_start + r][1] for r in selected_rows if page_start + r < len(self._videos)]
+            if selected_rows
+            else [v[1] for v in self._videos]
+        )
+        for path in paths:
+            if self._statuses.get(path, (ST_PENDING, ""))[0] in (ST_QUEUED, ST_RUNNING):
+                continue
+            self._statuses[path] = (ST_QUEUED, "Queued")
+            if path not in self._queue:
+                self._queue.append(path)
+        self._refresh_table()
+        self._pump_queue()
+
+    def _on_stop_all(self) -> None:
+        while self._queue:
+            self._statuses[self._queue.popleft()] = (ST_ERROR, "Stopped")
+        for worker in self._workers.values():
+            worker.cancel()
+        self._refresh_table()
+        self._update_actions()
 
     def _on_enhance_settings(self) -> None:
-        dlg = EnhanceDialog(selected_count=0, parent=self)
-        dlg.exec_()
+        EnhanceSettingDialog(parent=self).exec_()
 
     def _on_select_all(self) -> None:
-        self.table.selectAll()
+        self._table_widget.table.selectAll()
 
     def _on_deselect_all(self) -> None:
-        self.table.clearSelection()
+        self._table_widget.table.clearSelection()
 
     def _on_remove_selected(self) -> None:
         rows = sorted(
-            {idx.row() for idx in self.table.selectionModel().selectedRows()},
+            {idx.row() for idx in self._table_widget.table.selectionModel().selectedRows()},
             reverse=True,
         )
-        page_start = self._current_page * _PAGE_SIZE
+        page_start = self._current_page * PAGE_SIZE
         for r in rows:
             global_idx = page_start + r
             if 0 <= global_idx < len(self._videos):
+                path = self._videos[global_idx][1]
+                self._cancel_worker(path)
+                self._statuses.pop(path, None)
                 self._videos.pop(global_idx)
         self._current_page = min(self._current_page, max(0, self._total_pages - 1))
         self._refresh_table()
+        self._update_actions()
 
     def _on_clear_all(self) -> None:
+        self._queue.clear()
+        for path in list(self._workers):
+            self._cancel_worker(path)
+        self._workers.clear()
+        self._statuses.clear()
         self._videos.clear()
         self._current_page = 0
         self._refresh_table()
+        self._update_actions()
 
-    # ── Table: context menu ───────────────────────────────────────────────────
+    # ── Enhancement pipeline ──────────────────────────────────────────────────
+
+    def _pump_queue(self) -> None:
+        while len(self._workers) < MAX_CONCURRENT and self._queue:
+            path = self._queue.popleft()
+            if not os.path.isfile(path) or path in self._workers:
+                self._statuses[path] = (ST_ERROR, "File missing")
+                continue
+            worker = EnhancePostProcessWorker(
+                path, build_output_path(path), options_from_settings(),
+                job_id=path, parent=self,
+            )
+            worker.finished_signal.connect(
+                lambda ok, msg, outp, sz, p=path: self._on_worker_finished(p, ok, msg, outp, sz)
+            )
+            worker.start()
+            self._workers[path] = worker
+            self._statuses[path] = (ST_RUNNING, "Processing…")
+            signal_bus.enhance_started.emit(path, os.path.basename(path))
+        self._refresh_table()
+        self._update_actions()
+
+    def _on_worker_finished(self, path: str, success: bool, message: str, output_path: str, size_bytes: int) -> None:
+        self._workers.pop(path, None)
+        self._statuses[path] = (
+            (ST_DONE, "Done") if success else (ST_ERROR, (message or "Error")[:40])
+        )
+        signal_bus.enhance_finished.emit(
+            path, success, os.path.basename(path), output_path or "", size_bytes
+        )
+        self._refresh_table()
+        self._pump_queue()
+
+    def _cancel_worker(self, path: str) -> None:
+        worker = self._workers.pop(path, None)
+        if worker:
+            worker.cancel()
+            worker.quit()
+
+    def _update_actions(self) -> None:
+        self.act_stop.setEnabled(bool(self._workers) or bool(self._queue))
+
+    # ── Column sort ───────────────────────────────────────────────────────────
+
+    def _on_header_clicked(self, col: int) -> None:
+        if col not in (COL_NAME, COL_SIZE, COL_DURATION):
+            return
+        if self._sort_col == col:
+            self._sort_asc = not self._sort_asc
+        else:
+            self._sort_col, self._sort_asc = col, True
+        if col == COL_NAME:
+            key = lambda v: v[0].lower()
+        elif col == COL_SIZE:
+            key = lambda v: v[2]
+        else:
+            key = lambda v: v[4]
+        self._videos.sort(key=key, reverse=not self._sort_asc)
+        self._current_page = 0
+        self._refresh_table()
+
+    # ── Selection feedback ────────────────────────────────────────────────────
+
+    def _on_selection_changed(self) -> None:
+        n = len(self._table_widget.table.selectionModel().selectedRows())
+        self.selected_label.setText(self.tr(f"{n} selected") if n else "")
+
+    # ── Context menu ──────────────────────────────────────────────────────────
 
     def _on_context_menu(self, pos: QPoint) -> None:
-        row = self.table.indexAt(pos).row()
+        row = self._table_widget.table.indexAt(pos).row()
         if row < 0:
             return
-        global_idx = self._current_page * _PAGE_SIZE + row
+        global_idx = self._current_page * PAGE_SIZE + row
         if global_idx >= len(self._videos):
             return
-        _, path, _ = self._videos[global_idx]
+        _, path, *_ = self._videos[global_idx]
+        st = self._statuses.get(path, (ST_PENDING, ""))[0]
 
         menu = RoundMenu(title="", parent=self)
-        menu.addAction(Action(FIF.PLAY,   "Enhance this file",  triggered=self._on_enhance))
-        menu.addAction(Action(FIF.FOLDER, "Open folder",         triggered=lambda: self._open_folder(path)))
+        menu.addAction(Action(FIF.PLAY,   self.tr("Enhance this file"), triggered=lambda: self._enqueue_single(path)))
+        if st in (ST_ERROR, ST_DONE):
+            menu.addAction(Action(FIF.SYNC, self.tr("Retry"),            triggered=lambda: self._enqueue_single(path)))
+        menu.addAction(Action(FIF.FOLDER, self.tr("Open folder"),        triggered=lambda: self._open_folder(path)))
         menu.addSeparator()
-        menu.addAction(Action(FIF.DELETE, "Remove from list",    triggered=lambda: self._remove_row(global_idx)))
-        menu.exec_(self.table.viewport().mapToGlobal(pos))
+        menu.addAction(Action(FIF.DELETE, self.tr("Remove from list"),   triggered=lambda: self._remove_row(global_idx)))
+        menu.exec_(self._table_widget.table.viewport().mapToGlobal(pos))
+
+    def _enqueue_single(self, path: str) -> None:
+        if self._statuses.get(path, (ST_PENDING, ""))[0] in (ST_QUEUED, ST_RUNNING):
+            return
+        self._statuses[path] = (ST_QUEUED, "Queued")
+        if path not in self._queue:
+            self._queue.append(path)
+        self._refresh_table()
+        self._pump_queue()
 
     def _open_folder(self, path: str) -> None:
         if not path or not os.path.exists(path):
@@ -373,15 +395,19 @@ class BatchEnhanceInterface(BaseView):
 
     def _remove_row(self, global_idx: int) -> None:
         if 0 <= global_idx < len(self._videos):
+            path = self._videos[global_idx][1]
+            self._cancel_worker(path)
+            self._statuses.pop(path, None)
             self._videos.pop(global_idx)
             self._current_page = min(self._current_page, max(0, self._total_pages - 1))
             self._refresh_table()
+            self._update_actions()
 
     # ── Pagination ────────────────────────────────────────────────────────────
 
     @property
     def _total_pages(self) -> int:
-        return max(1, math.ceil(len(self._videos) / _PAGE_SIZE))
+        return max(1, math.ceil(len(self._videos) / PAGE_SIZE))
 
     def _on_page_prev(self) -> None:
         if self._current_page > 0:
@@ -397,36 +423,31 @@ class BatchEnhanceInterface(BaseView):
 
     def _refresh_table(self) -> None:
         if not self._videos:
-            self._table_stack.setCurrentIndex(0)
+            self._table_widget.show_empty()
             self.status_label.setText(self.tr("0 video(s)"))
             self.page_label.setText("1 / 1")
             self.prev_btn.setEnabled(False)
             self.next_btn.setEnabled(False)
             return
 
-        self._table_stack.setCurrentIndex(1)
-        page_start = self._current_page * _PAGE_SIZE
-        page_items = self._videos[page_start: page_start + _PAGE_SIZE]
+        page_start = self._current_page * PAGE_SIZE
+        self._table_widget.populate(
+            self._videos[page_start: page_start + PAGE_SIZE],
+            page_start,
+            self._statuses,
+        )
 
-        self.table.setUpdatesEnabled(False)
-        self.table.setRowCount(len(page_items))
-        for row, (name, _path, size) in enumerate(page_items):
-            num_item = QTableWidgetItem(str(page_start + row + 1))
-            num_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(row, _COL_IDX,      num_item)
-            self.table.setItem(row, _COL_NAME,     QTableWidgetItem(name))
-            self.table.setItem(row, _COL_SIZE,     QTableWidgetItem(format_size(size)))
-            status_item = QTableWidgetItem(self.tr("Pending"))
-            status_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(row, _COL_STATUS,   status_item)
-            progress_item = QTableWidgetItem("—")
-            progress_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(row, _COL_PROGRESS, progress_item)
-        self.table.setUpdatesEnabled(True)
+        total   = len(self._videos)
+        done    = sum(1 for st, _ in self._statuses.values() if st == ST_DONE)
+        running = sum(1 for st, _ in self._statuses.values() if st == ST_RUNNING)
+        parts   = [self.tr(f"{total} video(s)")]
+        if done:
+            parts.append(self.tr(f"{done} done"))
+        if running:
+            parts.append(self.tr(f"{running} running"))
+        self.status_label.setText("  ·  ".join(parts))
 
-        total = len(self._videos)
         pages = self._total_pages
-        self.status_label.setText(self.tr(f"{total} video(s)"))
         self.page_label.setText(f"{self._current_page + 1} / {pages}")
         self.prev_btn.setEnabled(self._current_page > 0)
         self.next_btn.setEnabled(self._current_page < pages - 1)

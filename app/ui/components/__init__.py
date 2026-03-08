@@ -2,6 +2,7 @@
 
 __version__ = "0.1.0"
 
+from .batch_enhance_table import BatchEnhanceTable
 from .card_header import CardHeader
 from .dashboard_feature_card import DashboardFeatureCard
 from .dashboard_feature_grid import DashboardFeatureGrid
@@ -13,6 +14,7 @@ from .DownloadPowerSettingCard import DownloadConfigCard
 from .status_table import StatusTable
 
 __all__ = [
+    "BatchEnhanceTable",
     "CardHeader",
     "DashboardFeatureCard",
     "DashboardFeatureGrid",
