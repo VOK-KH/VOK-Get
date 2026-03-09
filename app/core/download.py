@@ -133,3 +133,4 @@ def detect_platform(url: str) -> str:
                 return _DOMAIN_LABELS[domain]
             return domain.split(".")[0].capitalize()
     return "Unknown"
+

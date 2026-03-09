@@ -45,7 +45,7 @@ except ImportError:
     Task = Any  # type: ignore
 
 try:
-    from app.service.download_task_service import downloadTaskService
+    from app.core.download_task_service import downloadTaskService
 except ImportError:
     downloadTaskService = None
 
