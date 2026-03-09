@@ -4,7 +4,7 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from PyQt5.QtSql import QSqlDatabase
 
 from .db_initializer import DBInitializer
-from .service import *
+from .service import TaskService, QueueTaskService
 
 
 class SqlRequest:
@@ -63,10 +63,12 @@ class Database(QObject):
         """
         super().__init__(parent=parent)
         self.taskService = TaskService(db)
+        self.queueTaskService = QueueTaskService(db)
 
     def setDatabase(self, db: QSqlDatabase):
         """ set the database to be used """
         self.taskService.taskDao.setDatabase(db)
+        self.queueTaskService.queueTaskDao.setDatabase(db)
 
 
 

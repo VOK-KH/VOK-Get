@@ -1,11 +1,15 @@
 """Home interface: URL Download and Tasks tabs."""
 
 import os
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from PyQt5.QtWidgets import QSizePolicy, QStackedWidget, QVBoxLayout, QWidget
 from qfluentwidgets import SegmentedWidget
 
+from app.common.database import sqlRequest, sqlSignalBus
+from app.common.database.entity import QueueTask
+from app.common.database.service import QueueTaskService
 from app.common.paths import get_default_downloads_dir
 from app.common.signal_bus import signal_bus
 from app.common.sound import play_download_sound
@@ -15,6 +19,24 @@ from app.core.manager import DownloadJob, DownloadManager
 
 from .url_dowload_interface import UrlDownloadInterface
 from .task_dowload_interface import TaskDownloadInterface
+
+# Format key → short extension label shown in the table before the file is done
+_FORMAT_EXT: dict[str, str] = {
+    "Best (video+audio)": "mp4",
+    "HD 1080p":           "mp4",
+    "HD 720p":            "mp4",
+    "4K / 2160p":        "mp4",
+    "Best video":        "mp4",
+    "Best audio":        "mp3",
+    "Video (mp4)":       "mp4",
+    "Audio (mp3)":       "mp3",
+    "Photo / Image":     "jpg",
+}
+
+
+def _fmt_ext(format_key: str) -> str:
+    """Return a short extension label for a format key (e.g. 'mp4', 'mp3')."""
+    return _FORMAT_EXT.get(format_key, format_key)
 
 
 class HomeInterface(QWidget):
@@ -53,6 +75,8 @@ class HomeInterface(QWidget):
         self._active_jobs: set[str] = set()
         self._job_to_row: dict[str, int] = {}   # job_id → task model row index
         self._job_errors: set[str] = set()       # job_ids that ended with error
+        # db_id (QueueTask.id) per row — used to update / delete persisted records
+        self._row_to_db_id: dict[int, str] = {}  # row_idx → QueueTask.id
 
         # URL tab → task table
         self.url_interface.finished.connect(self._on_url_submitted)
@@ -62,12 +86,18 @@ class HomeInterface(QWidget):
         self.task_interface.download_requested.connect(self._on_tasks_download_requested)
 
         # Tasks tab cancel button → cancel all running jobs
-        self.task_interface.cancel_button.clicked.connect(self._manager.cancel_all)
+        self.task_interface.cancel_button.clicked.connect(self._on_cancel_all)
+
+        # Intercept row removal to keep DB in sync
+        self.task_interface.model.rowsAboutToBeRemoved.connect(self._on_rows_about_to_be_removed)
 
         # Manager feedback → per-row updates
         self._manager.progress.connect(self._on_download_progress)
         self._manager.job_progress_detail.connect(self._on_download_progress_detail)
         self._manager.job_finished.connect(self._on_download_job_finished)
+
+        # Restore incomplete tasks from previous session
+        self._restore_queue()
 
     # ── Tab helpers ───────────────────────────────────────────────────────
 
@@ -97,32 +127,155 @@ class HomeInterface(QWidget):
         self.stackedWidget.setCurrentWidget(self.task_interface)
         self.pivot.setCurrentItem(self._TAB_TASKS)
 
-    # ── URL / Bulk submissions ────────────────────────────────────────────
+    # ── Persistence helpers ──────────────────────────────────────────
+
+    def _get_queue_service(self) -> QueueTaskService | None:
+        """Return a direct (synchronous) QueueTaskService for the open DB connection."""
+        from PyQt5.QtSql import QSqlDatabase
+        from app.common.database.db_initializer import DBInitializer
+        db = QSqlDatabase.database(DBInitializer.CONNECTION_NAME)
+        if not db.isOpen():
+            return None
+        return QueueTaskService(db)
+
+    def _restore_queue(self) -> None:
+        """On startup: reload Pending/Downloading rows, reset Downloading → Pending."""
+        svc = self._get_queue_service()
+        if not svc:
+            return
+        rows = svc.list_recoverable()
+        if not rows:
+            return
+        for qt in rows:
+            # Reset stuck "Downloading" tasks back to Pending
+            if qt.status == "Downloading":
+                svc.update_status(qt.id, "Pending")
+                qt.status = "Pending"
+            row_idx = self.task_interface.model.add_task(
+                title=qt.title or qt.url,
+                host=qt.host,
+                fmt=qt.format_key,
+                path=qt.output_dir,
+                url=qt.url,
+            )
+            self._row_to_db_id[row_idx] = qt.id
+        if rows:
+            self.switch_to_tasks()
+
+    def _persist_task(self, row_idx: int, task: dict) -> None:
+        """Insert a new QueueTask row for the given task dict and remember its id."""
+        svc = self._get_queue_service()
+        if not svc:
+            return
+        qt = QueueTask(
+            url=task.get("url", ""),
+            title=task.get("title", ""),
+            host=task.get("host", ""),
+            format_key=task.get("format", "Best (video+audio)"),
+            output_dir=task.get("path", ""),
+            cookies_file=task.get("cookies_file", ""),
+            status="Pending",
+            create_time=datetime.now(timezone.utc).isoformat(),
+        )
+        svc.add(qt)
+        self._row_to_db_id[row_idx] = qt.id
+
+    def _db_update_status(self, row_idx: int, status: str, job_id: str = "") -> None:
+        """Update persisted row status (and optionally job_id)."""
+        db_id = self._row_to_db_id.get(row_idx)
+        if not db_id:
+            return
+        svc = self._get_queue_service()
+        if not svc:
+            return
+        svc.update_status(db_id, status)
+        if job_id:
+            svc.update_job_id(db_id, job_id)
+
+    def _db_delete_rows(self, row_indices: list[int]) -> None:
+        """Delete persisted records for the given row indices."""
+        ids = [self._row_to_db_id.pop(i, None) for i in row_indices]
+        ids = [i for i in ids if i]
+        if not ids:
+            return
+        svc = self._get_queue_service()
+        if svc:
+            svc.remove_batch(ids)
+        # Remap remaining indices after removal (rows shift down)
+        sorted_removed = sorted(row_indices, reverse=True)
+        new_map: dict[int, str] = {}
+        for idx, db_id in self._row_to_db_id.items():
+            shift = sum(1 for r in sorted_removed if r < idx)
+            new_map[idx - shift] = db_id
+        self._row_to_db_id = new_map
+
+    def _on_rows_about_to_be_removed(self, parent, first: int, last: int) -> None:
+        """Connected to model.rowsAboutToBeRemoved — delete DB rows synchronously."""
+        self._db_delete_rows(list(range(first, last + 1)))
+
+    # ── URL / Bulk submissions ──────────────────────────────────────────
 
     def _on_url_submitted(self, url_or_path: str) -> None:
         """Single URL or file path from URL tab → add to task table, switch."""
+        from app.config.store import load_settings
+        from app.common.paths import get_default_downloads_dir
+        s = load_settings()
+        fmt  = s.get("download_format", "Best (video+audio)")
+        save = s.get("download_path", str(get_default_downloads_dir()))
         host = ""
         if url_or_path.startswith(("http://", "https://")):
             try:
                 host = urlparse(url_or_path).netloc.replace("www.", "")
             except Exception:
                 pass
-        self.task_interface.set_task({
-            "title": url_or_path,
-            "url":   url_or_path,
-            "host":  host,
-            "path":  url_or_path if os.path.isfile(url_or_path) else "",
-        })
+        task_dict = {
+            "title":  url_or_path,
+            "url":    url_or_path,
+            "host":   host,
+            "format": _fmt_ext(fmt),
+            "path":   url_or_path if os.path.isfile(url_or_path) else save,
+        }
+        self.task_interface.set_task(task_dict)
+        row_idx = self.task_interface.model.rowCount() - 1
+        self._persist_task(row_idx, task_dict)
         self.switch_to_tasks()
 
-    def _on_bulk_submitted(self, urls: list) -> None:
-        """Multiple URLs from URL tab → add all to task table, switch."""
-        for url in urls:
-            try:
-                host = urlparse(url).netloc.replace("www.", "")
-            except Exception:
+    def _on_bulk_submitted(self, items: list) -> None:
+        """Multiple URLs/entry-dicts from URL tab → add all to task table, switch."""
+        from app.config.store import load_settings
+        from app.common.paths import get_default_downloads_dir
+        s = load_settings()
+        fmt  = s.get("download_format", "Best (video+audio)")
+        save = s.get("download_path", str(get_default_downloads_dir()))
+        for item in items:
+            if isinstance(item, dict):
+                url  = item.get("url", "")
+                title = item.get("title") or url
+                host  = item.get("host", "")
+                if not host and url.startswith(("http://", "https://")):
+                    try:
+                        host = urlparse(url).netloc.replace("www.", "")
+                    except Exception:
+                        pass
+            else:
+                url = item
+                title = url
                 host = ""
-            self.task_interface.set_task({"title": url, "url": url, "host": host})
+                if url.startswith(("http://", "https://")):
+                    try:
+                        host = urlparse(url).netloc.replace("www.", "")
+                    except Exception:
+                        pass
+            task_dict = {
+                "title":  title,
+                "url":    url,
+                "host":   host,
+                "format": _fmt_ext(fmt),
+                "path":   save,
+            }
+            self.task_interface.set_task(task_dict)
+            row_idx = self.task_interface.model.rowCount() - 1
+            self._persist_task(row_idx, task_dict)
         self.switch_to_tasks()
 
     # ── Download engine ───────────────────────────────────────────────────
@@ -170,14 +323,21 @@ class HomeInterface(QWidget):
             if row_idx is not None:
                 self._job_to_row[job.job_id] = row_idx
                 self.task_interface.update_task_progress(row_idx, 0, status="Downloading")
+                self._db_update_status(row_idx, "Downloading", job_id=job.job_id)
 
             self._manager.enqueue(job)
+
+    def _on_cancel_all(self) -> None:
+        """Cancel all running jobs and mark their DB rows as Canceled."""
+        for job_id, row in list(self._job_to_row.items()):
+            self._db_update_status(row, "Canceled")
+        self._manager.cancel_all()
 
     def _on_download_progress(self, job_id: str, value: float) -> None:
         row = self._job_to_row.get(job_id)
         if row is not None:
             pct = int(max(0.0, min(1.0, value)) * 100)
-            self.task_interface.update_task_progress(row, pct)
+            self.task_interface.update_task_progress(row, pct, status="Downloading")
         signal_bus.download_progress.emit(job_id, max(0.0, min(1.0, value)))
 
     def _on_download_progress_detail(
@@ -186,9 +346,10 @@ class HomeInterface(QWidget):
         signal_bus.download_progress_detail.emit(job_id, pct, speed, eta, cur, tot)
         row = self._job_to_row.get(job_id)
         if row is not None:
-            size_str = tot or cur
+            # Show total size if known; fall back to downloaded bytes when total is unavailable
+            size_str = tot if (tot and tot != "?") else cur
             self.task_interface.update_task_progress(
-                row, int(max(0.0, min(1.0, pct)) * 100), size=size_str
+                row, int(max(0.0, min(1.0, pct)) * 100), status="Downloading", size=size_str
             )
 
     def _on_download_job_finished(
@@ -207,11 +368,20 @@ class HomeInterface(QWidget):
         signal_bus.download_finished.emit(job_id, success, message, filepath, size_bytes)
 
         if row is not None:
+            final_size = _fmt_bytes(size_bytes) if size_bytes > 0 else ""
+            final_status = "Done" if success else "Error"
             self.task_interface.update_task_progress(
                 row,
                 100 if success else 0,
-                status="Done" if success else "Error",
+                status=final_status,
+                size=final_size,
             )
+            # Update Format column with the real extension from the saved file
+            if filepath:
+                ext = os.path.splitext(filepath)[1].lstrip(".")
+                if ext:
+                    self.task_interface.model.update_task(row, format=ext.lower())
+            self._db_update_status(row, final_status)
 
         if not success:
             self._job_errors.add(job_id)

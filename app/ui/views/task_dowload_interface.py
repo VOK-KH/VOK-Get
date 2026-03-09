@@ -95,6 +95,25 @@ class TaskDownloadInterface(QWidget):
         self.command_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)  # type: ignore
         top.addWidget(self.command_bar, 1)
 
+        # Save Folder — pick output folder
+        self._save_folder_action = Action(
+            FIF.FOLDER,
+            self.tr("Save Folder"),
+            triggered=self._on_save_folder_clicked,
+        )
+        self._save_folder_action.setToolTip(self.tr("Set download output folder"))
+        self.command_bar.addAction(self._save_folder_action)
+
+        # Download Settings — configure format, concurrency, cookies, etc.
+        self._download_settings_action = Action(
+            FIF.SETTING,
+            self.tr("Download Settings"),
+            triggered=self._on_download_settings,
+        )
+        self._download_settings_action.setToolTip(self.tr("Configure download options"))
+        self.command_bar.addAction(self._download_settings_action)
+        self.command_bar.addSeparator()
+        
         # Clipboard Observer — checkable; monitors clipboard for URLs
         self._clipboard_observer_action = Action(
             FIF.PASTE,
@@ -145,25 +164,7 @@ class TaskDownloadInterface(QWidget):
             Action(FIF.DELETE, self.tr("Clear"), triggered=self._on_clear)
         )
 
-        self.command_bar.addSeparator()
-
-        # Save Folder — pick output folder
-        self._save_folder_action = Action(
-            FIF.FOLDER,
-            self.tr("Save Folder"),
-            triggered=self._on_save_folder_clicked,
-        )
-        self._save_folder_action.setToolTip(self.tr("Set download output folder"))
-        self.command_bar.addAction(self._save_folder_action)
-
-        # Download Settings — configure format, concurrency, cookies, etc.
-        self._download_settings_action = Action(
-            FIF.SETTING,
-            self.tr("Download Settings"),
-            triggered=self._on_download_settings,
-        )
-        self._download_settings_action.setToolTip(self.tr("Configure download options"))
-        self.command_bar.addAction(self._download_settings_action)
+        
 
         # Start Download button
         self.start_button = PrimaryPushButton(self.tr("Start Download"), self, icon=FIF.DOWNLOAD)

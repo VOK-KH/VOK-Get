@@ -1,5 +1,6 @@
 from .entity import Entity
 from .task import Task, TaskStatus
+from .queue_task import QueueTask, QUEUE_STATUS_PENDING, QUEUE_STATUS_RUNNING, QUEUE_STATUS_DONE, QUEUE_STATUS_ERROR, QUEUE_STATUS_CANCELED
 
 from dataclasses import dataclass
 
@@ -9,20 +10,9 @@ class EntityFactory:
 
     @staticmethod
     def create(table: str):
-        """ create an entity instance
-
-        Parameters
-        ----------
-        table: str
-            database table name corresponding to entity
-
-        Returns
-        -------
-        entity:
-            entity instance
-        """
         tables = {
             "tbl_task": Task,
+            "tbl_download_queue": QueueTask,
         }
         if table not in tables:
             raise ValueError(f"Table name `{table}` is illegal")

@@ -134,3 +134,54 @@ def detect_platform(url: str) -> str:
             return domain.split(".")[0].capitalize()
     return "Unknown"
 
+
+# ---------------------------------------------------------------------------
+# Collection URL detection (playlist / channel / profile / group)
+# ---------------------------------------------------------------------------
+
+_COLLECTION_PATTERNS: list[re.Pattern] = [
+    # YouTube playlist
+    re.compile(r"(?:youtube\.com|youtu\.be).*[?&]list=", re.I),
+    # YouTube channel / user / handle
+    re.compile(r"youtube\.com/(?:channel/|c/|user/|@)[^/?#]+/?$", re.I),
+    re.compile(r"youtube\.com/@[^/?#]+(?:/videos|/shorts|/streams|/playlists)?/?$", re.I),
+    # TikTok profile  (@username without /video/ segment)
+    re.compile(r"tiktok\.com/@[^/?#]+/?$", re.I),
+    # TikTok hashtag / discover / tag
+    re.compile(r"tiktok\.com/(?:tag|discover|music)/", re.I),
+    # Instagram profile, hashtag, highlights
+    re.compile(r"instagram\.com/(?!p/|reel/|stories/)[^/?#]+/?$", re.I),
+    re.compile(r"instagram\.com/explore/tags/", re.I),
+    # Twitter / X list or hashtag-style search
+    re.compile(r"(?:twitter|x)\.com/[^/?#]+/lists/", re.I),
+    re.compile(r"(?:twitter|x)\.com/i/lists/", re.I),
+    # Facebook page, group, reel list
+    re.compile(r"facebook\.com/(?:groups?|pages?|profile\.php|[^/?#]+/videos)/?", re.I),
+    # Bilibili user space / playlist
+    re.compile(r"bilibili\.com/(?:space|playlist)/", re.I),
+    # SoundCloud user / sets (album or playlist)
+    re.compile(r"soundcloud\.com/[^/?#]+/(?:sets|likes|tracks)/?", re.I),
+    re.compile(r"soundcloud\.com/[^/?#]+/?$", re.I),
+    # VK community / video list
+    re.compile(r"vk\.com/(?:club|public|videos)[^/?#]*", re.I),
+    # Twitch channel
+    re.compile(r"twitch\.tv/[^/?#]+/?$", re.I),
+    # Dailymotion playlist / user
+    re.compile(r"dailymotion\.com/(?:playlist/|user/)", re.I),
+    # Pinterest board
+    re.compile(r"pinterest\.com/[^/?#]+/[^/?#]+/?$", re.I),
+    # Reddit subreddit / user (multi-post pages)
+    re.compile(r"reddit\.com/(?:r|user)/[^/?#]+/?$", re.I),
+]
+
+
+def detect_collection_url(url: str) -> bool:
+    """Return True if the URL points to a playlist, channel, profile or group.
+
+    Uses lightweight regex matching — no network call required.
+    """
+    for pattern in _COLLECTION_PATTERNS:
+        if pattern.search(url):
+            return True
+    return False
+

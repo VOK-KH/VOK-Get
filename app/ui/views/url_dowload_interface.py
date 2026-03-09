@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     FluentIcon,
+    IndeterminateProgressBar,
     InfoBar,
     LineEdit,
     MessageBoxBase,
@@ -24,7 +25,9 @@ from qfluentwidgets import (
     themeColor,
 )
 
+from app.common.concurrent import PlaylistFetchWorker
 from app.common.paths import PROJECT_ROOT
+from app.core.download import detect_collection_url
 
 LOGO_PATH = PROJECT_ROOT / "resources" / "logo.png"
 
@@ -53,6 +56,8 @@ class UrlDownloadInterface(QWidget):
         self.setObjectName("UrlDownloadInterface")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setAcceptDrops(True)
+
+        self._fetch_worker: PlaylistFetchWorker | None = None
 
         self._setup_ui()
         self._setup_signals()
@@ -161,6 +166,19 @@ class UrlDownloadInterface(QWidget):
         self._progress_bar.hide()
         status_layout.addWidget(self._progress_bar, 0, Qt.AlignCenter)
 
+        # Indeterminate spinner shown while extracting a playlist/channel
+        self._fetch_progress = IndeterminateProgressBar(self)
+        self._fetch_progress.setFixedWidth(300)
+        self._fetch_progress.hide()
+        status_layout.addWidget(self._fetch_progress, 0, Qt.AlignCenter)
+
+        # Cancel extraction button
+        self._cancel_fetch_btn = ToolButton(FluentIcon.CANCEL, self)
+        self._cancel_fetch_btn.setToolTip(self.tr("Cancel extraction"))
+        self._cancel_fetch_btn.hide()
+        self._cancel_fetch_btn.clicked.connect(self._cancel_extraction)
+        status_layout.addWidget(self._cancel_fetch_btn, 0, Qt.AlignCenter)
+
         self._layout.addStretch(1)
         self._layout.addLayout(status_layout)
 
@@ -218,13 +236,16 @@ class UrlDownloadInterface(QWidget):
         if os.path.isfile(text):
             self.finished.emit(text)
         elif self._is_valid_url(text):
-            self.finished.emit(text)
-            InfoBar.success(
-                self.tr("Queued"),
-                self.tr("URL sent to download queue."),
-                duration=INFOBAR_MS_SUCCESS,
-                parent=self,
-            )
+            if detect_collection_url(text):
+                self._start_extraction(text)
+            else:
+                self.finished.emit(text)
+                InfoBar.success(
+                    self.tr("Queued"),
+                    self.tr("URL sent to download queue."),
+                    duration=INFOBAR_MS_SUCCESS,
+                    parent=self,
+                )
         else:
             InfoBar.error(
                 self.tr("Invalid input"),
@@ -232,6 +253,95 @@ class UrlDownloadInterface(QWidget):
                 duration=INFOBAR_MS_ERROR,
                 parent=self,
             )
+
+    # ── Playlist / channel / profile extraction ───────────────────────────
+
+    def _start_extraction(self, url: str) -> None:
+        """Start PlaylistFetchWorker to extract all video entries from a collection URL."""
+        # Cancel any previous worker still running
+        if self._fetch_worker and self._fetch_worker.isRunning():
+            self._fetch_worker.cancel()
+            self._fetch_worker.wait()
+
+        from app.config.store import load_settings
+        cookies = load_settings().get("cookies_file", "")
+
+        self._fetch_worker = PlaylistFetchWorker(url=url, cookies_file=cookies, parent=self)
+        self._fetch_worker.entries_ready.connect(self._on_entries_ready)
+        self._fetch_worker.finished_signal.connect(self._on_extraction_finished)
+        self._fetch_worker.log_line.connect(
+            lambda msg: self._status_label.setText(msg[:80])
+        )
+
+        self._action_btn.setEnabled(False)
+        self._fetch_progress.show()
+        self._fetch_progress.start()
+        self._cancel_fetch_btn.show()
+        self._status_label.setText(self.tr("Extracting playlist / channel…"))
+        self._status_label.show()
+
+        self._fetch_worker.start()
+
+        InfoBar.info(
+            self.tr("Extracting"),
+            self.tr("Fetching video list from collection URL…"),
+            duration=INFOBAR_MS_INFO,
+            parent=self,
+        )
+
+    def _on_entries_ready(self, entries: list) -> None:
+        """Called when PlaylistFetchWorker emits entries_ready."""
+        # Emit full entry dicts so the task table can show title, host, etc.
+        tasks = [
+            {
+                "title": e.get("title") or e.get("url", ""),
+                "host":  e.get("uploader") or "",
+                "url":   e.get("url", ""),
+            }
+            for e in entries if e.get("url")
+        ]
+        if tasks:
+            self.bulk_finished.emit(tasks)
+
+    def _on_extraction_finished(self, success: bool, message: str) -> None:
+        """Called when PlaylistFetchWorker finishes (success or error)."""
+        self._fetch_progress.stop()
+        self._fetch_progress.hide()
+        self._cancel_fetch_btn.hide()
+        self._action_btn.setEnabled(True)
+
+        if success:
+            self._status_label.setText(message)
+            InfoBar.success(
+                self.tr("Extraction complete"),
+                message,
+                duration=INFOBAR_MS_SUCCESS,
+                parent=self,
+            )
+        else:
+            self._status_label.setText(self.tr("Extraction failed"))
+            InfoBar.error(
+                self.tr("Extraction failed"),
+                message,
+                duration=INFOBAR_MS_ERROR,
+                parent=self,
+            )
+
+    def _cancel_extraction(self) -> None:
+        """Cancel an in-progress playlist/channel extraction."""
+        if self._fetch_worker and self._fetch_worker.isRunning():
+            self._fetch_worker.cancel()
+        self._fetch_progress.stop()
+        self._fetch_progress.hide()
+        self._cancel_fetch_btn.hide()
+        self._action_btn.setEnabled(True)
+        self._status_label.setText(self.tr("Extraction cancelled"))
+        InfoBar.warning(
+            self.tr("Cancelled"),
+            self.tr("Playlist extraction was cancelled."),
+            duration=INFOBAR_MS_WARNING,
+            parent=self,
+        )
 
     # ── Drag & drop ───────────────────────────────────────────────────────
 

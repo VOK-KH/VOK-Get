@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QApplication
 from ..logger import Logger
 from ..paths import get_config_dir
 
-from .service import TaskService
+from .service import TaskService, QueueTaskService
 
 
 class DBInitializer:
@@ -25,3 +25,4 @@ class DBInitializer:
             QApplication.instance().quit()
             return
         TaskService(db).createTable()
+        QueueTaskService(db).createTable()
