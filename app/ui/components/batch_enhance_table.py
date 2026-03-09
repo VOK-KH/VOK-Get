@@ -39,16 +39,15 @@ from app.common.utils import (
 )
 
 
-COL_IDX      = 0
-COL_NAME     = 1
-COL_SIZE     = 2
-COL_RES      = 3
-COL_DURATION = 4
-COL_ETA      = 5
-COL_STATUS   = 6
-COL_PROGRESS = 7
+COL_NAME     = 0
+COL_SIZE     = 1
+COL_RES      = 2
+COL_DURATION = 3
+COL_ETA      = 4
+COL_STATUS   = 5
+COL_PROGRESS = 6
 
-COLS = ["#", "File Name", "Size", "Resolution", "Duration", "Est. Time", "Status", "Progress"]
+COLS = ["File Name", "Size", "Resolution", "Duration", "Est. Time", "Status", "Progress"]
 
 TABLE_QSS = "QTableView::item { padding-left: 8px; padding-right: 8px; }"
 
@@ -101,7 +100,6 @@ class BatchEnhanceTable(QWidget):
 
         hdr = self.table.horizontalHeader()
         if hdr:
-            hdr.setSectionResizeMode(COL_IDX,      QHeaderView.ResizeMode.Fixed)
             hdr.setSectionResizeMode(COL_NAME,     QHeaderView.ResizeMode.Stretch)
             hdr.setSectionResizeMode(COL_SIZE,     QHeaderView.ResizeMode.Fixed)
             hdr.setSectionResizeMode(COL_RES,      QHeaderView.ResizeMode.Fixed)
@@ -111,7 +109,6 @@ class BatchEnhanceTable(QWidget):
             hdr.setSectionResizeMode(COL_PROGRESS, QHeaderView.ResizeMode.Fixed)
             hdr.setSectionsClickable(True)
 
-        self.table.setColumnWidth(COL_IDX,      40)
         self.table.setColumnWidth(COL_SIZE,     85)
         self.table.setColumnWidth(COL_RES,      100)
         self.table.setColumnWidth(COL_DURATION, 80)
@@ -203,11 +200,6 @@ class BatchEnhanceTable(QWidget):
         self.table.setRowCount(len(page_items))
 
         for row, (name, path, size, resolution, duration) in enumerate(page_items):
-            # #
-            num_item = QTableWidgetItem(str(page_start + row + 1))
-            num_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(row, COL_IDX, num_item)
-
             # File name — full path in tooltip
             name_item = QTableWidgetItem(name)
             name_item.setToolTip(path)
