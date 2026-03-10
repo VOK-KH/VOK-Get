@@ -23,7 +23,7 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          VERSION=$(grep -E '^version\s*=' pyproject.toml | sed -E 's/^version\s*=\s*//' | tr -d '"' | tr -d "'" | xargs)
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           uv run pyinstaller vok.spec --clean --noconfirm
           codesign --force --deep --sign - dist/VOK.app 2>/dev/null || true
