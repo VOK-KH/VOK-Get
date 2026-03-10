@@ -25,11 +25,11 @@ body:
     validations:
       required: true
   - type: input
-    id: Fluent-M3U8
+    id: VOK
     attributes:
-      label: Fluent-M3U8 Version
-      description: Which version of Fluent-M3U8 are you using? Please ensure that you are using the latest version!
-      placeholder: ex. v0.3.0
+      label: VOK Version
+      description: Which version of VOK are you using? Please ensure that you are using the latest version!
+      placeholder: ex. v0.1.8
     validations:
       required: true
   - type: textarea
@@ -37,15 +37,13 @@ body:
     attributes:
       label: How to Reproduce?
       description: A clear and concise description of what the bug is.
-      placeholder: Steps to reproduce the behavior(you can use gif to demonstrate the problem :)
+      placeholder: Steps to reproduce the behavior (you can use a gif to demonstrate the problem :)
     validations:
       required: true
   - type: input
-    id: m3u8
+    id: video-url
     attributes:
-      label: m3u8 URL
-      description: The m3u8 URL for reproducing issues
-      placeholder: ex. http://host/test.m3u8
-    validations:
-      required: true
+      label: Video URL
+      description: The video URL for reproducing the issue (if applicable)
+      placeholder: ex. https://www.youtube.com/watch?v=...
 
