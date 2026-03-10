@@ -34,6 +34,12 @@ jobs:
           echo "VERSION=$VERSION" >> $env:GITHUB_ENV
           uv run pyinstaller vok.spec --clean --noconfirm
 
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=${{ env.VERSION }}"
+
       - name: Create zip archive
         shell: pwsh
         run: |
@@ -44,7 +50,9 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: VOK-v${{ env.VERSION }}-Windows-x86_64.zip
+          files: |
+            VOK-v${{ env.VERSION }}-Windows-x86_64.zip
+            dist/VOK-v${{ env.VERSION }}-Windows-x86_64-Setup.exe
 
   build-macos:
     runs-on: macos-15
@@ -79,7 +87,7 @@ jobs:
           while [ $attempt -lt $max_attempts ]; do
               hdiutil create -srcfolder "dist/" -volname "VOK" -fs HFS+ \
                   -fsargs "-c c=64,a=16,e=16" -format UDZO -size 400m \
-                  "VOK-v${{ env.VERSION }}-macOS-AppleSilicon.dmg" && break
+                  "VOK-v${{ env.VERSION }}-macOS-arm64.dmg" && break
 
               attempt=$((attempt + 1))
               echo "Attempt $attempt failed, retrying..."
@@ -94,9 +102,9 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: VOK-v${{ env.VERSION }}-macOS-AppleSilicon.dmg
+          files: VOK-v${{ env.VERSION }}-macOS-arm64.dmg
 
-  build-linux:
+  build-linux-x86_64:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
@@ -127,11 +135,51 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           QT_QPA_PLATFORM=offscreen uv run pyinstaller vok.spec --clean --noconfirm
 
-      - name: Create tar archive
+      - name: Create zip archive
         run: |
-          tar -czf "VOK-v${{ env.VERSION }}-Linux-x86_64.tar.gz" -C dist VOK
+          cd dist && zip -r "../VOK-v${{ env.VERSION }}-Linux-x86_64.zip" VOK
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: VOK-v${{ env.VERSION }}-Linux-x86_64.tar.gz
+          files: VOK-v${{ env.VERSION }}-Linux-x86_64.zip
+
+  build-linux-arm64:
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-xinerama0 libxcb-xfixes0 libgl1 libglib2.0-0 \
+            libdbus-1-3 libxkbcommon-x11-0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Build with PyInstaller
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          QT_QPA_PLATFORM=offscreen uv run pyinstaller vok.spec --clean --noconfirm
+
+      - name: Create zip archive
+        run: |
+          cd dist && zip -r "../VOK-v${{ env.VERSION }}-Linux-arm64.zip" VOK
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: VOK-v${{ env.VERSION }}-Linux-arm64.zip
