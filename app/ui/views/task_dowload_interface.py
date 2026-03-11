@@ -18,11 +18,14 @@ from qfluentwidgets import (
     Action,
     CommandBar,
     BodyLabel,
+    MessageBox,
     PrimaryPushButton,
     ProgressBar,
     PushButton,
     RoundMenu,
     TableView,
+    ToolButton,
+    ToolTipFilter,
 )
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import InfoBarPosition
@@ -70,6 +73,7 @@ class TaskDownloadInterface(QWidget):
     cancel_requested   = pyqtSignal()        # user pressed Cancel
     finished           = pyqtSignal(str, str)
     message_requested  = pyqtSignal(str, str, str, int, object)  # level, title, message, duration, position
+    queue_clear_confirmed = pyqtSignal()     # user confirmed Clear all → parent clears DB then model
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -132,29 +136,25 @@ class TaskDownloadInterface(QWidget):
         self.command_bar.addAction(self._download_settings_action)
         self.command_bar.addSeparator()
         
-        # Clipboard Observer — checkable; monitors clipboard for URLs
-        self._clipboard_observer_action = Action(
-            FIF.PASTE,
-            self.tr("Clipboard Observer"),
-            triggered=self._on_clipboard_observer_toggled,
-            checkable=True,
-        )
-        self._clipboard_observer_action.setToolTip(
-            self.tr("Enable or Disable Clipboard Observer")
-        )
-        self.command_bar.addAction(self._clipboard_observer_action)
+        # Clipboard Observer — icon only, checkable; ToolTipFilter for component tooltip
+        self._clipboard_observer_btn = ToolButton(FIF.PASTE, self)
+        self._clipboard_observer_btn.setCheckable(True)
+        self._clipboard_observer_btn.clicked.connect(self._on_clipboard_observer_clicked)
+        self._clipboard_observer_btn.setToolTip(self.tr("Enable or Disable Clipboard Observer"))
+        self._clipboard_observer_btn.setToolTipDuration(3000)
+        self._clipboard_observer_btn.installEventFilter(ToolTipFilter(self._clipboard_observer_btn))
+        self.command_bar.addWidget(self._clipboard_observer_btn)
 
-        # Clipboard Observer Settings gear — enabled only when observer is active
-        self._clipboard_settings_action = Action(
-            FIF.SETTING,
-            self.tr("Clipboard Observer Settings"),
-            triggered=self._on_clipboard_observer_settings,
-        )
-        self._clipboard_settings_action.setToolTip(
+        # Clipboard Observer Settings — icon only; enabled when observer is active
+        self._clipboard_settings_btn = ToolButton(FIF.SETTING, self)
+        self._clipboard_settings_btn.clicked.connect(self._on_clipboard_observer_settings)
+        self._clipboard_settings_btn.setToolTip(
             self.tr("Configure Clipboard Observer (interval, filters)")
         )
-        self._clipboard_settings_action.setEnabled(False)
-        self.command_bar.addAction(self._clipboard_settings_action)
+        self._clipboard_settings_btn.setToolTipDuration(3000)
+        self._clipboard_settings_btn.installEventFilter(ToolTipFilter(self._clipboard_settings_btn))
+        self._clipboard_settings_btn.setEnabled(False)
+        self.command_bar.addWidget(self._clipboard_settings_btn)
 
         self.command_bar.addSeparator()
 
@@ -257,6 +257,10 @@ class TaskDownloadInterface(QWidget):
 
     # ── Clipboard observer ─────────────────────────────────────────────────
 
+    def _on_clipboard_observer_clicked(self) -> None:
+        """Toggle clipboard observer; sync settings button enabled state."""
+        self._on_clipboard_observer_toggled(self._clipboard_observer_btn.isChecked())
+
     def _on_clipboard_observer_toggled(self, checked: bool) -> None:
         """Start or stop monitoring the clipboard for URLs."""
         if checked:
@@ -264,11 +268,11 @@ class TaskDownloadInterface(QWidget):
             self._clipboard_last_text = QApplication.clipboard().text()
             self._clipboard_timer.setInterval(self._clipboard_interval)
             self._clipboard_timer.start()
-            self._clipboard_settings_action.setEnabled(True)
+            self._clipboard_settings_btn.setEnabled(True)
             self.status_label.setText(self.tr("Clipboard Observer: ON"))
         else:
             self._clipboard_timer.stop()
-            self._clipboard_settings_action.setEnabled(False)
+            self._clipboard_settings_btn.setEnabled(False)
             self.status_label.setText(self.tr("Clipboard Observer: OFF"))
 
     def _on_clipboard_observer_settings(self) -> None:
@@ -400,8 +404,21 @@ class TaskDownloadInterface(QWidget):
         dlg.exec_()
 
     def _on_clear(self) -> None:
-        self.model.clear()
-        self.status_label.setText(self.tr("Queue cleared"))
+        """Ask confirmation to clear all tasks and reset database; emit queue_clear_confirmed if user confirms."""
+        if self.model.rowCount() == 0:
+            return
+        msg = MessageBox(
+            self.tr("Clear all tasks"),
+            self.tr(
+                "This will remove all tasks from the queue and clean (reset) the data in the database.\n\n"
+                "Are you sure you want to continue?"
+            ),
+            self,
+        )
+        msg.yesButton.setText(self.tr("Clear all"))
+        msg.cancelButton.setText(self.tr("Cancel"))
+        if msg.exec():
+            self.queue_clear_confirmed.emit()
 
     def _refresh_host_icon_for_url(self, url: str) -> None:
         """Refresh the host column for the row with this URL (after icon cache updated)."""

@@ -72,7 +72,7 @@ class ExitHandler:
         reply.yesButton.setText(self.tr("Exit"))
         reply.cancelButton.setText(self.tr("Cancel"))
         
-        if reply.exec() == MessageBox.MessageBoxAction.Yes:
+        if reply.exec():
             self.logger.info("User confirmed application exit")
             self.perform_exit()
             return True

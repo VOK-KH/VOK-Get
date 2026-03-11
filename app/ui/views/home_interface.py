@@ -91,6 +91,9 @@ class HomeInterface(QWidget):
         # Tasks tab cancel button → cancel all running jobs
         self.task_interface.cancel_requested.connect(self._on_cancel_all)
 
+        # Clear all (with confirmation) → clean DB then clear model
+        self.task_interface.queue_clear_confirmed.connect(self._on_queue_clear_confirmed)
+
         # Intercept row removal to keep DB in sync
         self.task_interface.model.rowsAboutToBeRemoved.connect(self._on_rows_about_to_be_removed)
 
@@ -396,6 +399,17 @@ class HomeInterface(QWidget):
     def _on_rows_about_to_be_removed(self, parent, first: int, last: int) -> None:
         """Connected to model.rowsAboutToBeRemoved — delete DB rows synchronously."""
         self._db_delete_rows(list(range(first, last + 1)))
+
+    def _on_queue_clear_confirmed(self) -> None:
+        """User confirmed Clear all: remove all queue tasks from DB, then clear model."""
+        ids = list(self._row_to_db_id.values())
+        self._row_to_db_id.clear()
+        if ids:
+            svc = self._get_queue_service()
+            if svc:
+                svc.remove_batch(ids)
+        self.task_interface.model.clear()
+        self.task_interface.status_label.setText(self.task_interface.tr("Queue cleared"))
 
     # ── URL / Bulk submissions ──────────────────────────────────────────
 
