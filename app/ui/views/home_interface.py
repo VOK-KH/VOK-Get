@@ -1,5 +1,3 @@
-"""Home interface: URL Download and Tasks tabs."""
-
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -40,8 +38,6 @@ INFOBAR_MS_INFO = 3000
 
 
 class HomeInterface(QWidget):
-    """Tabbed download home: URL Download (enter URL) | Tasks (table)."""
-
     _TAB_URL = "url_download"
     _TAB_TASKS = "tasks"
 
@@ -58,7 +54,7 @@ class HomeInterface(QWidget):
         self.task_interface = TaskDownloadInterface(self)
 
         self._add_tab(self.url_interface, self._TAB_URL, self.tr("URL Download"))
-        self._add_tab(self.task_interface, self._TAB_TASKS, self.tr("Tasks"))
+        self._add_tab(self.task_interface, self._TAB_TASKS, self.tr("Queue"))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -75,7 +71,6 @@ class HomeInterface(QWidget):
         self._active_jobs: set[str] = set()
         self._job_to_row: dict[str, int] = {}   # job_id → task model row index
         self._job_errors: set[str] = set()       # job_ids that ended with error
-        # db_id (QueueTask.id) per row — used to update / delete persisted records
         self._row_to_db_id: dict[int, str] = {}  # row_idx → QueueTask.id
         self._queue_service: QueueTaskService | None = None  # cached for persistence
         self._icon_workers: list = []  # HostIconFetchWorker instances

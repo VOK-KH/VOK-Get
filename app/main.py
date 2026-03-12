@@ -1,5 +1,3 @@
-"""VOK - Video downloader and content scraper. Entry point."""
-
 import sys
 import signal
 import atexit
@@ -9,7 +7,7 @@ from PyQt5.QtGui import QColor, QIcon
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import Theme, setTheme, setThemeColor, FluentIcon, InfoBar, InfoBarPosition, SplashScreen, qconfig
 from app import bootstrap
-from app.common.application import SingletonApplication, exception_hook  # noqa: F401 — installs sys.excepthook
+from app.common.application import SingletonApplication, exception_hook
 
 from app.common.paths import PROJECT_ROOT, APPDATA_DIR
 from app.common.i18n import apply_language, LANGUAGES
@@ -17,7 +15,7 @@ from app.config import load_settings
 from app.ui.main_window import MainWindow
 from app.ui.theme import apply_app_palette
 
-# Global reference to main window for cleanup
+
 _main_window = None
 
 

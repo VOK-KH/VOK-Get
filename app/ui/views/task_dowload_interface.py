@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from PyQt5.QtCore import Qt, QTimer, QUrl, pyqtSignal
+from PyQt5.QtCore import QModelIndex, Qt, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent, QKeyEvent
 from PyQt5.QtWidgets import (
     QAbstractItemView,
@@ -16,16 +16,12 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QDesktopServices
 from qfluentwidgets import (
     Action,
-    CommandBar,
     BodyLabel,
     MessageBox,
-    PrimaryPushButton,
     ProgressBar,
     PushButton,
     RoundMenu,
     TableView,
-    ToolButton,
-    ToolTipFilter,
 )
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import InfoBarPosition
@@ -50,6 +46,7 @@ from app.ui.components.download_task_model import (
     COL_IDX, COL_TITLE, COL_HOST, COL_STATUS, COL_SIZE, COL_PROGRESS,
     _STATUS_PENDING, _STATUS_RUNNING, _STATUS_DONE, _STATUS_ERROR, _STATUS_CANCELED,
 )
+from app.ui.components.task_command_bar import TaskCommandBar
 from app.ui.dialogs import (
     AddLinkDialog,
     ClipboardSettingsDialog,
@@ -103,103 +100,21 @@ class TaskDownloadInterface(QWidget):
         self._setup_toolbar()
         self._setup_table()
         self._setup_footer()
-        # Disable enhance action without overwriting the default status label
-        self._enhance_settings_action.setEnabled(False)
+        self._command_bar.enhance_settings_action.setEnabled(False)
 
     # ── Toolbar ────────────────────────────────────────────────────────────
 
     def _setup_toolbar(self) -> None:
-        top = QHBoxLayout()
-        top.setSpacing(6)
-        top.setContentsMargins(0, 8, 0, 0)  # padding top for command bar
-
-        self.command_bar = CommandBar(self)
-        self.command_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)  # type: ignore
-        top.addWidget(self.command_bar, 1)
-
-        # Save Folder — pick output folder
-        self._save_folder_action = Action(
-            FIF.FOLDER,
-            self.tr("Save Folder"),
-            triggered=self._on_save_folder_clicked,
-        )
-        self._save_folder_action.setToolTip(self.tr("Set download output folder"))
-        self.command_bar.addAction(self._save_folder_action)
-
-        # Download Settings — configure format, concurrency, cookies, etc.
-        self._download_settings_action = Action(
-            FIF.SETTING,
-            self.tr("Download Settings"),
-            triggered=self._on_download_settings,
-        )
-        self._download_settings_action.setToolTip(self.tr("Configure download options"))
-        self.command_bar.addAction(self._download_settings_action)
-        self.command_bar.addSeparator()
-        
-        # Clipboard Observer — icon only, checkable; ToolTipFilter for component tooltip
-        self._clipboard_observer_btn = ToolButton(FIF.PASTE, self)
-        self._clipboard_observer_btn.setCheckable(True)
-        self._clipboard_observer_btn.clicked.connect(self._on_clipboard_observer_clicked)
-        self._clipboard_observer_btn.setToolTip(self.tr("Enable or Disable Clipboard Observer"))
-        self._clipboard_observer_btn.setToolTipDuration(3000)
-        self._clipboard_observer_btn.installEventFilter(ToolTipFilter(self._clipboard_observer_btn))
-        self.command_bar.addWidget(self._clipboard_observer_btn)
-
-        # Clipboard Observer Settings — icon only; enabled when observer is active
-        self._clipboard_settings_btn = ToolButton(FIF.SETTING, self)
-        self._clipboard_settings_btn.clicked.connect(self._on_clipboard_observer_settings)
-        self._clipboard_settings_btn.setToolTip(
-            self.tr("Configure Clipboard Observer (interval, filters)")
-        )
-        self._clipboard_settings_btn.setToolTipDuration(3000)
-        self._clipboard_settings_btn.installEventFilter(ToolTipFilter(self._clipboard_settings_btn))
-        self._clipboard_settings_btn.setEnabled(False)
-        self.command_bar.addWidget(self._clipboard_settings_btn)
-
-        self.command_bar.addSeparator()
-
-        # Optimize (字幕校正) — checkable; when checked, enhance settings are allowed
-        self.optimize_button = Action(
-            FIF.EDIT,
-            self.tr("字幕校正"),
-            triggered=self._on_subtitle_optimization_changed,
-            checkable=True,
-        )
-        self.command_bar.addAction(self.optimize_button)
-
-        # Enhance settings (enabled only when optimize is checked)
-        self._enhance_settings_action = Action(
-            FIF.SETTING,
-            self.tr("Enhance Settings"),
-            triggered=self._on_enhance_configure,
-        )
-        self.command_bar.addAction(self._enhance_settings_action)
-
-        self.command_bar.addSeparator()
-
-        # Add Link — type/paste a URL, fetch video info then add to queue
-        self._add_link_action = Action(
-            FIF.ADD,
-            self.tr("Add Link"),
-            triggered=self._on_add_link,
-        )
-        self._add_link_action.setToolTip(self.tr("Add a video URL and analyze its info (Ctrl+V)"))
-        self.command_bar.addAction(self._add_link_action)
-
-        # Clear all
-        self.command_bar.addAction(
-            Action(FIF.DELETE, self.tr("Clear"), triggered=self._on_clear)
-        )
-
-        
-
-        # Start Download button
-        self.start_button = PrimaryPushButton(self.tr("Start Download"), self, icon=FIF.DOWNLOAD)
-        self.start_button.setFixedHeight(34)
-        self.start_button.clicked.connect(self._on_download_clicked)
-        top.addWidget(self.start_button)
-
-        self.main_layout.addLayout(top)
+        self._command_bar = TaskCommandBar(self)
+        self._command_bar.download_settings_clicked.connect(self._on_download_settings)
+        self._command_bar.clipboard_observer_clicked.connect(self._on_clipboard_observer_clicked)
+        self._command_bar.clipboard_settings_clicked.connect(self._on_clipboard_observer_settings)
+        self._command_bar.subtitle_optimization_changed.connect(self._on_subtitle_optimization_changed)
+        self._command_bar.enhance_configure_clicked.connect(self._on_enhance_configure)
+        self._command_bar.add_link_clicked.connect(self._on_add_link)
+        self._command_bar.clear_clicked.connect(self._on_clear)
+        self._command_bar.start_download_clicked.connect(self._on_download_clicked)
+        self.main_layout.addWidget(self._command_bar)
 
     # ── Table ──────────────────────────────────────────────────────────────
 
@@ -229,6 +144,7 @@ class TaskDownloadInterface(QWidget):
 
         self.task_table.setContextMenuPolicy(Qt.CustomContextMenu)  # type: ignore
         self.task_table.customContextMenuRequested.connect(self._show_context_menu)
+        self.task_table.doubleClicked.connect(self._on_task_row_double_clicked)
 
         self.main_layout.addWidget(self.task_table)
 
@@ -259,7 +175,7 @@ class TaskDownloadInterface(QWidget):
 
     def _on_clipboard_observer_clicked(self) -> None:
         """Toggle clipboard observer; sync settings button enabled state."""
-        self._on_clipboard_observer_toggled(self._clipboard_observer_btn.isChecked())
+        self._on_clipboard_observer_toggled(self._command_bar.clipboard_observer_btn.isChecked())
 
     def _on_clipboard_observer_toggled(self, checked: bool) -> None:
         """Start or stop monitoring the clipboard for URLs."""
@@ -268,11 +184,11 @@ class TaskDownloadInterface(QWidget):
             self._clipboard_last_text = QApplication.clipboard().text()
             self._clipboard_timer.setInterval(self._clipboard_interval)
             self._clipboard_timer.start()
-            self._clipboard_settings_btn.setEnabled(True)
+            self._command_bar.clipboard_settings_btn.setEnabled(True)
             self.status_label.setText(self.tr("Clipboard Observer: ON"))
         else:
             self._clipboard_timer.stop()
-            self._clipboard_settings_btn.setEnabled(False)
+            self._command_bar.clipboard_settings_btn.setEnabled(False)
             self.status_label.setText(self.tr("Clipboard Observer: OFF"))
 
     def _on_clipboard_observer_settings(self) -> None:
@@ -349,7 +265,7 @@ class TaskDownloadInterface(QWidget):
 
     def _set_enhance_enabled(self, enabled: bool) -> None:
         """Enable or disable enhance settings action. If disabling, turn off enhance."""
-        self._enhance_settings_action.setEnabled(enabled)
+        self._command_bar.enhance_settings_action.setEnabled(enabled)
         if not enabled:
             self._enhance_enabled = False
         if hasattr(self, "status_label") and self.status_label:
@@ -588,8 +504,8 @@ class TaskDownloadInterface(QWidget):
             )
             return
 
-        self._enhance_enabled = self.optimize_button.isChecked()
-        self.start_button.setEnabled(False)
+        self._enhance_enabled = self._command_bar.optimize_button.isChecked()
+        self._command_bar.start_button.setEnabled(False)
         self.cancel_button.show()
         self.progress_bar.setValue(0)
         self.status_label.setText(self.tr("Starting download…"))
@@ -608,7 +524,7 @@ class TaskDownloadInterface(QWidget):
 
     def _on_cancel(self) -> None:
         # Update own UI immediately; parent handles manager cancellation
-        self.start_button.setEnabled(True)
+        self._command_bar.start_button.setEnabled(True)
         self.cancel_button.hide()
         self.progress_bar.setValue(0)
         self.status_label.setText(self.tr("Cancelled"))
@@ -637,7 +553,7 @@ class TaskDownloadInterface(QWidget):
         self.model.update_task(row_idx, **kwargs)
 
     def on_finished(self, video_path: str = "", output_path: str = "") -> None:
-        self.start_button.setEnabled(True)
+        self._command_bar.start_button.setEnabled(True)
         self.cancel_button.hide()
         self.progress_bar.setValue(100)
         self.status_label.setText(self.tr("Done"))
@@ -651,7 +567,7 @@ class TaskDownloadInterface(QWidget):
         )
 
     def on_error(self, error: str) -> None:
-        self.start_button.setEnabled(True)
+        self._command_bar.start_button.setEnabled(True)
         self.cancel_button.hide()
         self.progress_bar.error()
         self.message_requested.emit(
@@ -702,7 +618,37 @@ class TaskDownloadInterface(QWidget):
             self.status_label.setText(self.tr(f"Added {added} file(s) via drag & drop"))
         event.accept()
 
-    # ── Context menu ───────────────────────────────────────────────────────
+    def _on_task_row_double_clicked(self, index: QModelIndex) -> None:
+        """When the row's status is Done, open the video's folder in the file manager."""
+        if not index.isValid():
+            return
+        row = index.row()
+        task = self.model.get_task(row)
+        if not task or task.get("status") != _STATUS_DONE:
+            return
+        path_str = resolve_task_path(task.get("file_path"), task.get("path"))
+        if not path_str:
+            self._emit_message(
+                "warning",
+                self.tr("Open folder"),
+                self.tr("No file path for this task."),
+                INFOBAR_MS_WARNING,
+            )
+            return
+        folder = dir_for_path(path_str)
+        if folder is None:
+            # Path may not exist on disk; try opening parent of the path string
+            folder = Path(path_str).parent
+            if not folder.is_dir():
+                self._emit_message(
+                    "warning",
+                    self.tr("Open folder"),
+                    self.tr("Folder not found: {}").format(folder),
+                    INFOBAR_MS_WARNING,
+                )
+                return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
 
     def _show_context_menu(self, pos) -> None:
         rows = self._selected_rows()
@@ -718,6 +664,9 @@ class TaskDownloadInterface(QWidget):
         has_pending   = any(t.get("status") == _STATUS_PENDING  for t in tasks)
         has_retryable = any(t.get("status") in (_STATUS_ERROR, _STATUS_CANCELED) for t in tasks)
         first_url     = next((t.get("url", "") for t in tasks if t.get("url")), "")
+        if not isinstance(first_url, str):
+            first_url = ""
+        first_url = (first_url or "").strip()
         first_path    = next((t.get("path", "") for t in tasks if t.get("path")), "")
 
         menu = RoundMenu(parent=self)

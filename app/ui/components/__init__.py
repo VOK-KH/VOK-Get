@@ -18,6 +18,7 @@ from .download_task_model import (
     _STATUS_PENDING, _STATUS_RUNNING, _STATUS_DONE, _STATUS_ERROR, _STATUS_CANCELED,
 )
 from .status_table import StatusTable
+from .task_command_bar import TaskCommandBar
 from .task_card_view import (
     DownloadingTaskView,
     EnhancingTaskView,
@@ -45,6 +46,7 @@ __all__ = [
     "FailedTaskView",
     "StatusTable",
     "SuccessTaskView",
+    "TaskCommandBar",
     "TaskCardView",
     "TaskStackedWidget",
 ]
