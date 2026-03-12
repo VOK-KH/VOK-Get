@@ -53,7 +53,7 @@ from app.ui.dialogs import (
     ClearOldTasksDialog,
     DownloadSettingsDialog,
 )
-from app.ui.utils import format_size
+from app.common.format import format_size
 
 INFOBAR_MS_SUCCESS = 3000
 INFOBAR_MS_ERROR   = 5000

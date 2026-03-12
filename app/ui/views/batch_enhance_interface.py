@@ -40,7 +40,7 @@ from app.common.utils import (
 )
 from app.ui.components.batch_enhance_table import BatchEnhanceTable
 from app.ui.dialogs.enhance_setting_dialog import EnhanceSettingDialog
-from app.ui.helpers.batch_enhance import (
+from app.common.enhance_helpers import (
     build_output_path,
     options_from_settings,
     probe_video_meta,

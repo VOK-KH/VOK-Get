@@ -1,4 +1,4 @@
-"""Formatting and text utilities for the UI."""
+"""Formatting and text utilities (size, speed, ANSI stripping)."""
 
 import re
 

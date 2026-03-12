@@ -1,4 +1,4 @@
-"""Downloader view helpers: format options and platform host icons."""
+"""Downloader helpers: format options and platform host icons."""
 
 from PyQt5.QtGui import QIcon
 from qfluentwidgets import FluentIcon

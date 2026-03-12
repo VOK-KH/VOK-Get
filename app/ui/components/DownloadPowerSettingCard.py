@@ -14,7 +14,7 @@ from qfluentwidgets import (
 
 from app.common.paths import get_default_downloads_dir
 from app.config import load_settings
-from app.ui.helpers import DOWNLOAD_FORMATS
+from app.common.downloader_helpers import DOWNLOAD_FORMATS
 
 
 class DownloadConfigCard(ExpandGroupSettingCard):

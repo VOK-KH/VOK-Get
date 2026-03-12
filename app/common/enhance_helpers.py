@@ -1,4 +1,4 @@
-"""Utility helpers shared by the Batch Enhance view."""
+"""Enhance helpers: build options, output paths, and video probing."""
 
 from __future__ import annotations
 
@@ -67,4 +67,3 @@ def probe_video_meta(path: str) -> tuple[str, float]:
         return resolution, duration
     except Exception:
         return "—", -1.0
-

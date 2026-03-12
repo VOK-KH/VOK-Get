@@ -23,7 +23,7 @@ from app.common.state import add_log_entry
 from app.config.store import load_settings
 from app.core.download import check_unsupported_url, detect_platform, normalize_url
 from app.core.manager import DownloadJob, DownloadManager
-from app.ui.utils import format_size
+from app.common.format import format_size
 
 from app.common.concurrent import HostIconFetchWorker, MetaFetchWorker
 
@@ -549,7 +549,7 @@ class HomeInterface(QWidget):
         if success and row is not None and filepath and os.path.isfile(filepath) and self.task_interface.get_enhance_enabled():
             try:
                 from app.common.concurrent import EnhancePostProcessWorker
-                from app.ui.helpers.batch_enhance import options_from_settings, build_output_path
+                from app.common.enhance_helpers import options_from_settings, build_output_path
                 self._enhance_pending.add(job_id)
                 opts = options_from_settings()
                 out_path = build_output_path(filepath)

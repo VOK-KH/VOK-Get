@@ -56,8 +56,8 @@ from app.ui.components import (
     DownloadTableCard,
     EnhanceOptions,
 )
-from app.ui.helpers import DOWNLOAD_FORMATS, host_icon
-from app.ui.utils import format_size, strip_ansi
+from app.common.downloader_helpers import DOWNLOAD_FORMATS, host_icon
+from app.common.format import format_size, strip_ansi
 
 from .base import BaseView
 

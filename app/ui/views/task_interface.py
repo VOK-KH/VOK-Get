@@ -11,7 +11,7 @@ from app.common.database import sqlRequest
 from app.common.database.entity import Task, TaskStatus
 from app.common.signal_bus import signal_bus
 from app.config import load_settings
-from app.ui.utils import format_size
+from app.common.format import format_size
 from app.common.speed_badge import SpeedBadge
 from ..components.active_badge import ActiveBadge
 from ..components.interface import Interface

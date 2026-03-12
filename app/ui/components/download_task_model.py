@@ -44,7 +44,7 @@ class DownloadTaskModel(QAbstractTableModel):
 
         if role == Qt.DecorationRole:  # type: ignore
             if col == COL_HOST:
-                from app.ui.helpers.downloader import host_icon
+                from app.common.downloader_helpers import host_icon
                 return host_icon(row.get("host", ""))
 
         if role == Qt.DisplayRole:  # type: ignore

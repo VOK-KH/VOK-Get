@@ -34,7 +34,7 @@ from app.common.paths import get_default_downloads_dir
 from app.common.state import add_log_entry
 from app.config import get_default_settings, load_settings, save_settings
 from app.core.updater import check_update, download_update, install_update
-from app.ui.helpers import DOWNLOAD_FORMATS
+from app.common.downloader_helpers import DOWNLOAD_FORMATS
 from app.ui.theme import apply_app_palette
 
 from .base import BaseView

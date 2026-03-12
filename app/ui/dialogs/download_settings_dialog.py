@@ -19,7 +19,7 @@ from qfluentwidgets import (
 )
 
 from app.config.store import load_settings, save_settings
-from app.ui.helpers import DOWNLOAD_FORMATS
+from app.common.downloader_helpers import DOWNLOAD_FORMATS
 
 INFOBAR_MS_SUCCESS = 3000
 

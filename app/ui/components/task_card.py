@@ -36,7 +36,7 @@ from qfluentwidgets import (
 from app.common.utils import showInFolder, openUrl
 from app.common.signal_bus import signal_bus
 from app.common.speed_badge import SpeedBadge
-from app.ui.utils import format_size, format_speed
+from app.common.format import format_size, format_speed
 
 # Optional: database entity and download task service (no m3u8)
 try:

@@ -23,7 +23,7 @@ from qfluentwidgets import (
     setCustomStyleSheet,
 )
 
-from app.ui.utils import format_size
+from app.common.format import format_size
 
 from app.common.utils import (
     ST_PENDING,
