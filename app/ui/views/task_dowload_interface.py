@@ -77,15 +77,15 @@ class TaskDownloadInterface(QWidget):
         self.setAcceptDrops(True)
         self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore
 
-        self._enhance_enabled: bool = False
         self._clipboard_last_text: str = ""
-        self._clipboard_interval: int = 500  # ms
         self._clipboard_timer = QTimer(self)
-        self._clipboard_timer.setInterval(self._clipboard_interval)
         self._clipboard_timer.timeout.connect(self._poll_clipboard)
-        # Seed last text so the current clipboard isn't auto-added on enable
         self._clipboard_last_text = QApplication.clipboard().text()
-        # Track running MetaFetchWorker instances so they can be cancelled on close
+        # Load clipboard sync from config store
+        s = load_settings()
+        self._clipboard_interval = int(s.get("clipboard_sync_interval", 500))
+        self._clipboard_url_filter: str = s.get("clipboard_sync_url_filter", "") or ""
+        self._clipboard_timer.setInterval(self._clipboard_interval)
         self._info_workers: list = []
         self._icon_workers: list = []
 
@@ -100,7 +100,15 @@ class TaskDownloadInterface(QWidget):
         self._setup_toolbar()
         self._setup_table()
         self._setup_footer()
-        self._command_bar.enhance_settings_action.setEnabled(False)
+        # Restore clipboard sync enabled state from config
+        self._command_bar.clipboard_observer_btn.setChecked(
+            bool(load_settings().get("clipboard_sync_enabled", False))
+        )
+        self._on_clipboard_observer_toggled(self._command_bar.clipboard_observer_btn.isChecked())
+        # Restore enhance enabled state from config
+        self._command_bar.enhance_btn.setChecked(
+            bool(load_settings().get("download_with_enhance_enabled", False))
+        )
 
     # ── Toolbar ────────────────────────────────────────────────────────────
 
@@ -109,8 +117,9 @@ class TaskDownloadInterface(QWidget):
         self._command_bar.download_settings_clicked.connect(self._on_download_settings)
         self._command_bar.clipboard_observer_clicked.connect(self._on_clipboard_observer_clicked)
         self._command_bar.clipboard_settings_clicked.connect(self._on_clipboard_observer_settings)
-        self._command_bar.subtitle_optimization_changed.connect(self._on_subtitle_optimization_changed)
-        self._command_bar.enhance_configure_clicked.connect(self._on_enhance_configure)
+        self._command_bar.open_save_folder_clicked.connect(self._on_open_save_folder)
+        self._command_bar.enhance_enabled_changed.connect(self._on_enhance_enabled_changed)
+        self._command_bar.enhance_settings_clicked.connect(self._on_enhance_settings_clicked)
         self._command_bar.add_link_clicked.connect(self._on_add_link)
         self._command_bar.clear_clicked.connect(self._on_clear)
         self._command_bar.start_download_clicked.connect(self._on_download_clicked)
@@ -178,7 +187,7 @@ class TaskDownloadInterface(QWidget):
         self._on_clipboard_observer_toggled(self._command_bar.clipboard_observer_btn.isChecked())
 
     def _on_clipboard_observer_toggled(self, checked: bool) -> None:
-        """Start or stop monitoring the clipboard for URLs."""
+        """Start or stop monitoring the clipboard for URLs; persist enabled state."""
         if checked:
             # Seed with current clipboard so we don't immediately add it
             self._clipboard_last_text = QApplication.clipboard().text()
@@ -190,6 +199,18 @@ class TaskDownloadInterface(QWidget):
             self._clipboard_timer.stop()
             self._command_bar.clipboard_settings_btn.setEnabled(False)
             self.status_label.setText(self.tr("Clipboard Observer: OFF"))
+        s = load_settings()
+        s["clipboard_sync_enabled"] = checked
+        save_settings(s)
+
+    def _on_enhance_enabled_changed(self, checked: bool) -> None:
+        s = load_settings()
+        s["download_with_enhance_enabled"] = checked
+        save_settings(s)
+
+    def _on_enhance_settings_clicked(self) -> None:
+        from app.ui.dialogs.enhance_setting_dialog import EnhanceSettingDialog
+        EnhanceSettingDialog(self).exec_()
 
     def _on_clipboard_observer_settings(self) -> None:
         dlg = ClipboardSettingsDialog(
@@ -199,8 +220,12 @@ class TaskDownloadInterface(QWidget):
         )
         if dlg.exec_():
             self._clipboard_interval = dlg.get_interval()
-            self._clipboard_url_filter: str = dlg.get_filter()
+            self._clipboard_url_filter = dlg.get_filter()
             self._clipboard_timer.setInterval(self._clipboard_interval)
+            s = load_settings()
+            s["clipboard_sync_interval"] = self._clipboard_interval
+            s["clipboard_sync_url_filter"] = self._clipboard_url_filter
+            save_settings(s)
             self.message_requested.emit(
                 "success",
                 self.tr("Settings saved"),
@@ -259,25 +284,6 @@ class TaskDownloadInterface(QWidget):
             self.model.remove_selected(to_remove)
         return len(to_remove)
 
-    def _on_subtitle_optimization_changed(self, checked: bool) -> None:
-        """When 字幕校正 is checked, allow enhance settings; when unchecked, disable them."""
-        self._set_enhance_enabled(checked)
-
-    def _set_enhance_enabled(self, enabled: bool) -> None:
-        """Enable or disable enhance settings action. If disabling, turn off enhance."""
-        self._command_bar.enhance_settings_action.setEnabled(enabled)
-        if not enabled:
-            self._enhance_enabled = False
-        if hasattr(self, "status_label") and self.status_label:
-            self.status_label.setText(
-                self.tr("Enhance settings enabled (字幕校正 on)")
-                if enabled else
-                self.tr("Enhance settings disabled (字幕校正 off)")
-            )
-
-    def _add_url_task(self, url: str) -> None:
-        self._analyze_and_add_url(url)
-
     def _paste_clipboard_urls(self, text: str) -> None:
         """Parse clipboard text into video-only URLs (no playlist/profile), skip duplicates, add to queue."""
         existing = self._get_existing_task_urls()
@@ -314,11 +320,6 @@ class TaskDownloadInterface(QWidget):
                 None,
             )
 
-    def _on_enhance_configure(self) -> None:
-        from app.ui.dialogs.enhance_setting_dialog import EnhanceSettingDialog
-        dlg = EnhanceSettingDialog(self)
-        dlg.exec_()
-
     def _on_clear(self) -> None:
         """Ask confirmation to clear all tasks and reset database; emit queue_clear_confirmed if user confirms."""
         if self.model.rowCount() == 0:
@@ -353,6 +354,17 @@ class TaskDownloadInterface(QWidget):
             url = dlg.get_url()
             if url:
                 self._analyze_and_add_url(url)
+
+    def _on_open_save_folder(self) -> None:
+        """Open the configured download folder in the system file manager."""
+        folder = load_settings().get("download_path", "")
+        if not folder:
+            from app.common.paths import get_default_downloads_dir
+            folder = str(get_default_downloads_dir())
+        p = Path(folder)
+        if not p.is_dir():
+            p.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))
 
     def _analyze_and_add_url(self, url: str) -> None:
         """Validate URL, normalize, add row, then fetch metadata and icon in background."""
@@ -504,7 +516,6 @@ class TaskDownloadInterface(QWidget):
             )
             return
 
-        self._enhance_enabled = self._command_bar.optimize_button.isChecked()
         self._command_bar.start_button.setEnabled(False)
         self.cancel_button.show()
         self.progress_bar.setValue(0)
@@ -512,10 +523,9 @@ class TaskDownloadInterface(QWidget):
         self.message_requested.emit(
             "info",
             self.tr("Download started"),
-            self.tr("Queued {} task(s){}.")
-            .format(
+            self.tr("Queued {} task(s){}.").format(
                 len(tasks_to_run),
-                self.tr(" with Enhance") if self._enhance_enabled else "",
+                self.tr(" (with Enhance)") if self.get_enhance_enabled() else "",
             ),
             INFOBAR_MS_INFO,
             None,
@@ -590,6 +600,10 @@ class TaskDownloadInterface(QWidget):
     def add_url(self, url: str) -> None:
         self._add_url_task(url)
 
+    def get_enhance_enabled(self) -> bool:
+        """Return True if Download with Enhance is checked (run enhance after each download)."""
+        return bool(self._command_bar.enhance_btn.isChecked())
+
     # ── Drag & drop ────────────────────────────────────────────────────────
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
@@ -619,7 +633,8 @@ class TaskDownloadInterface(QWidget):
         event.accept()
 
     def _on_task_row_double_clicked(self, index: QModelIndex) -> None:
-        """When the row's status is Done, open the video's folder in the file manager."""
+        """When the row's status is Done, open the video's folder in the file manager.
+        If the task has no file path, open the configured save folder instead."""
         if not index.isValid():
             return
         row = index.row()
@@ -628,11 +643,20 @@ class TaskDownloadInterface(QWidget):
             return
         path_str = resolve_task_path(task.get("file_path"), task.get("path"))
         if not path_str:
+            # No path stored: open configured download folder so the user can find saves
+            folder_str = load_settings().get("download_path", "")
+            if not folder_str:
+                from app.common.paths import get_default_downloads_dir
+                folder_str = str(get_default_downloads_dir())
+            folder = Path(folder_str)
+            if not folder.is_dir():
+                folder.mkdir(parents=True, exist_ok=True)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
             self._emit_message(
-                "warning",
+                "info",
                 self.tr("Open folder"),
-                self.tr("No file path for this task."),
-                INFOBAR_MS_WARNING,
+                self.tr("Opened save folder (task has no file path)."),
+                INFOBAR_MS_INFO,
             )
             return
         folder = dir_for_path(path_str)

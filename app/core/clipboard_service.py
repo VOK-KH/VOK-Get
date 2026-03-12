@@ -14,6 +14,7 @@ from app.core.download import (
     check_unsupported_url,
     detect_collection_url,
     normalize_url,
+    url_to_single_video,
 )
 
 
@@ -67,6 +68,8 @@ def get_video_urls_to_add(
 
     - Splits on newlines, commas, spaces.
     - Keeps only http(s) URLs that pass is_video_url (no playlist/profile/unsupported).
+    - For playlist URLs (e.g. YouTube watch with list=), uses the current video only
+      (single-video URL) and adds that to the list instead of skipping.
     - Normalizes each URL; skips if already in existing_urls.
     - Optionally filters by domain_filter (comma-separated domains).
 
@@ -80,6 +83,13 @@ def get_video_urls_to_add(
         canonical, _ = normalize_url(u)
         if canonical in seen:
             continue
+        # If URL is a collection (playlist/channel), try to reduce to current video (e.g. YouTube watch?list= → watch?v=)
+        if not is_video_url(canonical):
+            single = url_to_single_video(canonical)
+            if single is not None:
+                canonical, _ = normalize_url(single)
+            else:
+                continue
         if canonical in existing_urls:
             continue
         if not is_video_url(canonical):

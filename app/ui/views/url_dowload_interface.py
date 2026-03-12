@@ -1,5 +1,3 @@
-"""URL Download Interface: centered URL/file input, drag-and-drop, progress."""
-
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -19,11 +17,7 @@ from app.common.concurrent import PlaylistFetchWorker
 from app.common.paths import RESOURCES_DIR
 from app.config.store import load_settings
 from app.core.download import detect_collection_url, url_to_single_video
-from app.core.task_queue import (
-    SUPPORTED_EXTENSIONS,
-    is_http_url,
-    build_playlist_task_entries,
-)
+from app.core.task_queue import is_http_url, build_playlist_task_entries
 from app.ui.dialogs import BulkUrlDialog, DownloadSettingsDialog
 
 LOGO_PATH = RESOURCES_DIR / "logo.png"
@@ -35,17 +29,16 @@ INFOBAR_MS_INFO = 3000
 
 
 class UrlDownloadInterface(QWidget):
-    """Centered URL / file-path input with drag-and-drop and progress feedback."""
+    """Centered URL input with progress feedback."""
 
-    finished = pyqtSignal(str)          # single URL / file path
-    bulk_finished = pyqtSignal(list)    # list[str] of validated URLs
+    finished = pyqtSignal(str)          # single URL
+    bulk_finished = pyqtSignal(list)    # list of validated URLs / task dicts
     message_requested = pyqtSignal(str, str, str, int, object)  # level, title, message, duration, position
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("UrlDownloadInterface")
         self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setAcceptDrops(True)
 
         self._fetch_worker: PlaylistFetchWorker | None = None
 
@@ -82,12 +75,10 @@ class UrlDownloadInterface(QWidget):
 
         self._url_input = LineEdit(self)
         self._url_input.setPlaceholderText(
-            self.tr("https://  —  Paste video URL, then configure options below …")
+            self.tr("Paste video URL")
         )
         self._url_input.setFixedHeight(44)
         self._url_input.setClearButtonEnabled(True)
-        # Override ALL LineEdit / QLineEdit states so the fluent orange underline
-        # never shows — we own the full rounded border instead.
         self._url_input.setStyleSheet("""
             LineEdit, QLineEdit {
                 border-radius: 22px;
@@ -118,9 +109,8 @@ class UrlDownloadInterface(QWidget):
 
         self._settings_btn = ToolButton(FluentIcon.SETTING, self)
         self._settings_btn.setFixedSize(40, 40)
-        self._settings_btn.setToolTip(self.tr("Configure download options"))
+        self._settings_btn.setToolTip(self.tr("Download settings (format, folder, cookies)"))
         self._settings_btn.setStyleSheet(_aux_ss)
-        self._settings_btn.hide()
 
         self._action_btn = ToolButton(FluentIcon.DOWNLOAD, self)
         self._action_btn.setFixedSize(40, 40)
@@ -183,6 +173,7 @@ class UrlDownloadInterface(QWidget):
 
     def _setup_signals(self):
         self._action_btn.clicked.connect(self._on_action_clicked)
+        self._url_input.returnPressed.connect(self._on_action_clicked)
         self._paste_btn.clicked.connect(self._on_paste_clicked)
         self._bulk_btn.clicked.connect(self._on_bulk_clicked)
         self._settings_btn.clicked.connect(self._on_settings_clicked)
@@ -195,7 +186,6 @@ class UrlDownloadInterface(QWidget):
         has_url = bool(self._url_input.text().strip())
         self._paste_btn.setVisible(not has_url)
         self._bulk_btn.setVisible(not has_url)
-        self._settings_btn.setVisible(has_url)
 
     def _on_paste_clicked(self):
         text = QApplication.clipboard().text().strip()
@@ -232,7 +222,7 @@ class UrlDownloadInterface(QWidget):
         if not text:
             self._emit_message(
                 "warning", self.tr("Empty input"),
-                self.tr("Please enter a URL or drop a media file first."),
+                self.tr("Please enter a video URL."),
                 INFOBAR_MS_WARNING,
             )
             return
@@ -262,7 +252,7 @@ class UrlDownloadInterface(QWidget):
         else:
             self._emit_message(
                 "error", self.tr("Invalid input"),
-                self.tr("Enter a valid file path or video URL."), INFOBAR_MS_ERROR,
+                self.tr("Enter a valid video URL."), INFOBAR_MS_ERROR,
             )
 
     # ── Playlist / channel / profile extraction ───────────────────────────
@@ -334,30 +324,6 @@ class UrlDownloadInterface(QWidget):
             self.tr("Playlist extraction was cancelled."), INFOBAR_MS_WARNING,
         )
 
-    # ── Drag & drop ───────────────────────────────────────────────────────
-
-    def dragEnterEvent(self, event):
-        event.accept() if event.mimeData().hasUrls() else event.ignore()
-
-    def dropEvent(self, event):
-        for url in event.mimeData().urls():
-            path_str = url.toLocalFile()
-            if not path_str:
-                continue
-            path = Path(path_str)
-            if not path.is_file():
-                continue
-            ext = path.suffix.lstrip(".").lower()
-            if ext in SUPPORTED_EXTENSIONS:
-                self._url_input.setText(path_str)
-                self._emit_message("success", self.tr("File imported"), path_str, INFOBAR_MS_SUCCESS)
-            else:
-                self._emit_message(
-                    "error", self.tr(f"Unsupported format: .{ext}"),
-                    self.tr("Drop a video or audio file."), INFOBAR_MS_ERROR,
-                )
-            break
-
     # ── Progress feedback (called externally) ─────────────────────────────
 
     def set_progress(self, value: int, status: str = ""):
@@ -379,8 +345,6 @@ class UrlDownloadInterface(QWidget):
 
     def set_url(self, text: str):
         self._url_input.setText(text)
-        # Sync paste/bulk vs settings visibility
         has_url = bool(text.strip())
         self._paste_btn.setVisible(not has_url)
         self._bulk_btn.setVisible(not has_url)
-        self._settings_btn.setVisible(has_url)

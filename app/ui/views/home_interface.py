@@ -75,6 +75,8 @@ class HomeInterface(QWidget):
         self._queue_service: QueueTaskService | None = None  # cached for persistence
         self._icon_workers: list = []  # HostIconFetchWorker instances
         self._meta_workers: list = []  # MetaFetchWorker instances (title/size from URL tab)
+        self._enhance_pending: set[str] = set()  # job_ids currently in enhance post-process
+        self._enhance_pending: set[str] = set()  # job_ids currently running enhance (so we don't call on_finished until done)
 
         # URL tab → task table
         self.url_interface.finished.connect(self._on_url_submitted)
@@ -543,6 +545,39 @@ class HomeInterface(QWidget):
         add_log_entry("info" if success else "error", message)
         signal_bus.download_finished.emit(job_id, success, message, filepath, size_bytes)
 
+        # If success and "Download with Enhance" is on, run enhance post-process instead of marking row done now
+        if success and row is not None and filepath and os.path.isfile(filepath) and self.task_interface.get_enhance_enabled():
+            try:
+                from app.common.concurrent import EnhancePostProcessWorker
+                from app.ui.helpers.batch_enhance import options_from_settings, build_output_path
+                self._enhance_pending.add(job_id)
+                opts = options_from_settings()
+                out_path = build_output_path(filepath)
+                worker = EnhancePostProcessWorker(filepath, out_path, opts, job_id=job_id, parent=self)
+
+                def _on_enhance_done(succ: bool, msg: str, out: str, sz: int, r=row, jid=job_id):
+                    self._enhance_pending.discard(jid)
+                    if r is not None:
+                        size_str = format_size(sz) if sz > 0 else (msg if not succ else "")
+                        self.task_interface.update_task_progress(
+                            r, 100 if succ else 0,
+                            status=QUEUE_STATUS_DONE if succ else QUEUE_STATUS_ERROR,
+                            size=size_str,
+                        )
+                        self._db_update_status(r, QUEUE_STATUS_DONE if succ else QUEUE_STATUS_ERROR)
+                    if not self._active_jobs and not self._enhance_pending:
+                        self.task_interface.on_finished(out or filepath, out or filepath)
+                worker.finished_signal.connect(_on_enhance_done)
+                worker.start()
+                # Keep worker alive
+                if not hasattr(self, "_enhance_workers"):
+                    self._enhance_workers = []
+                self._enhance_workers.append(worker)
+                return
+            except Exception:
+                self._enhance_pending.discard(job_id)
+                # Fall through to normal row update
+
         if row is not None:
             final_size = format_size(size_bytes) if size_bytes > 0 else ""
             final_status = QUEUE_STATUS_DONE if success else QUEUE_STATUS_ERROR
@@ -557,8 +592,8 @@ class HomeInterface(QWidget):
         if not success:
             self._job_errors.add(job_id)
 
-        # When the last queued job finishes, update overall UI state
-        if not self._active_jobs:
+        # When the last queued job finishes (and no enhance pending), update overall UI state
+        if not self._active_jobs and not self._enhance_pending:
             had_errors = bool(self._job_errors)
             self._job_errors.clear()
             if had_errors:
