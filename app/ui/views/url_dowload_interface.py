@@ -18,13 +18,13 @@ from qfluentwidgets import (
 from app.common.concurrent import PlaylistFetchWorker
 from app.common.paths import RESOURCES_DIR
 from app.config.store import load_settings
-from app.core.download import detect_collection_url
+from app.core.download import detect_collection_url, url_to_single_video
 from app.core.task_queue import (
     SUPPORTED_EXTENSIONS,
     is_http_url,
     build_playlist_task_entries,
 )
-from app.ui.dialogs import BulkUrlDialog
+from app.ui.dialogs import BulkUrlDialog, DownloadSettingsDialog
 
 LOGO_PATH = RESOURCES_DIR / "logo.png"
 
@@ -116,6 +116,12 @@ class UrlDownloadInterface(QWidget):
         self._bulk_btn.setToolTip(self.tr("Bulk URLs — enter multiple URLs at once"))
         self._bulk_btn.setStyleSheet(_aux_ss)
 
+        self._settings_btn = ToolButton(FluentIcon.SETTING, self)
+        self._settings_btn.setFixedSize(40, 40)
+        self._settings_btn.setToolTip(self.tr("Configure download options"))
+        self._settings_btn.setStyleSheet(_aux_ss)
+        self._settings_btn.hide()
+
         self._action_btn = ToolButton(FluentIcon.DOWNLOAD, self)
         self._action_btn.setFixedSize(40, 40)
         self._apply_primary_btn_style()
@@ -123,6 +129,7 @@ class UrlDownloadInterface(QWidget):
         row.addWidget(self._url_input)
         row.addWidget(self._paste_btn)
         row.addWidget(self._bulk_btn)
+        row.addWidget(self._settings_btn)
         row.addWidget(self._action_btn)
         self._layout.addLayout(row)
         self._layout.addSpacing(100)
@@ -178,17 +185,26 @@ class UrlDownloadInterface(QWidget):
         self._action_btn.clicked.connect(self._on_action_clicked)
         self._paste_btn.clicked.connect(self._on_paste_clicked)
         self._bulk_btn.clicked.connect(self._on_bulk_clicked)
+        self._settings_btn.clicked.connect(self._on_settings_clicked)
         self._url_input.textChanged.connect(self._on_text_changed)
 
     # ── Slots ─────────────────────────────────────────────────────────────
 
     def _on_text_changed(self):
         self._action_btn.setIcon(FluentIcon.DOWNLOAD)
+        has_url = bool(self._url_input.text().strip())
+        self._paste_btn.setVisible(not has_url)
+        self._bulk_btn.setVisible(not has_url)
+        self._settings_btn.setVisible(has_url)
 
     def _on_paste_clicked(self):
         text = QApplication.clipboard().text().strip()
         if text:
             self._url_input.setText(text)
+
+    def _on_settings_clicked(self):
+        dialog = DownloadSettingsDialog(self)
+        dialog.exec_()
 
     def _on_bulk_clicked(self):
         dialog = BulkUrlDialog(self)
@@ -225,7 +241,18 @@ class UrlDownloadInterface(QWidget):
             self.finished.emit(text)
         elif is_http_url(text):
             if detect_collection_url(text):
-                self._start_extraction(text)
+                if load_settings().get("single_video_default", True):
+                    single_url = url_to_single_video(text)
+                    if single_url:
+                        self.finished.emit(single_url)
+                        self._emit_message(
+                            "success", self.tr("Queued"),
+                            self.tr("Single video sent to download queue."), INFOBAR_MS_SUCCESS,
+                        )
+                    else:
+                        self._start_extraction(text)
+                else:
+                    self._start_extraction(text)
             else:
                 self.finished.emit(text)
                 self._emit_message(
@@ -352,3 +379,8 @@ class UrlDownloadInterface(QWidget):
 
     def set_url(self, text: str):
         self._url_input.setText(text)
+        # Sync paste/bulk vs settings visibility
+        has_url = bool(text.strip())
+        self._paste_btn.setVisible(not has_url)
+        self._bulk_btn.setVisible(not has_url)
+        self._settings_btn.setVisible(has_url)

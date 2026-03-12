@@ -83,6 +83,17 @@ class DownloadSettingsDialog(MessageBoxBase):
         self._format_card.hBoxLayout.addSpacing(16)
         output_grp.addSettingCard(self._format_card)
 
+        self._single_video_card = SettingCard(
+            FluentIcon.VIDEO,
+            self.tr("Single video by default"),
+            self.tr("For playlist URLs (e.g. watch?v=…&list=…), queue only the current video; turn off to queue the full list"),
+        )
+        self._single_video_switch = SwitchButton()
+        self._single_video_switch.setChecked(bool(s.get("single_video_default", True)))
+        self._single_video_card.hBoxLayout.addWidget(self._single_video_switch)
+        self._single_video_card.hBoxLayout.addSpacing(16)
+        output_grp.addSettingCard(self._single_video_card)
+
         lay.addWidget(output_grp)
 
         # ── Performance ───────────────────────────────────────────────────
@@ -204,6 +215,7 @@ class DownloadSettingsDialog(MessageBoxBase):
         s = self._settings
         s["download_path"]                   = self._path_card.contentLabel.text()
         s["download_format"]                 = self._format_combo.currentText()
+        s["single_video_default"]            = self._single_video_switch.isChecked()
         s["concurrent_downloads"]            = int(self._conc_combo.currentText())
         s["concurrent_fragments"]            = int(self._frag_combo.currentText())
         s["cookies_file"]                    = self._cookies_edit.text().strip()

@@ -6,6 +6,7 @@ The actual QThread worker lives in app.common.concurrent.download_worker.
 """
 
 import re
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from app.core.ffmpeg.manager import ffmpeg_available as _ffmpeg_available  # noqa: F401
 
@@ -184,4 +185,26 @@ def detect_collection_url(url: str) -> bool:
         if pattern.search(url):
             return True
     return False
+
+
+def url_to_single_video(url: str) -> str | None:
+    """If the URL is a YouTube watch URL with both v= and list=, return URL with only v= (current video).
+
+    So only the current video is used instead of the full playlist.
+    Returns None if the URL cannot be reduced to a single video (e.g. channel, or no v=).
+    """
+    stripped = url.strip()
+    parsed = urlparse(stripped)
+    if parsed.netloc and "youtube.com" not in parsed.netloc.lower() and "youtu.be" not in parsed.netloc.lower():
+        return None
+    # youtube.com/watch?v=ID&list=...
+    if "list=" not in stripped and "list=" not in parsed.query:
+        return None
+    qs = parse_qs(parsed.query, keep_blank_values=False)
+    video_id = qs.get("v", [None])[0] if qs.get("v") else None
+    if not video_id:
+        return None
+    new_query = urlencode({"v": video_id})
+    new = parsed._replace(query=new_query)
+    return urlunparse(new)
 

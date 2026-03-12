@@ -141,7 +141,6 @@ class HomeInterface(QWidget):
         worker.start()
 
     def _start_metadata_fetch(self, url: str, cookies_file: str = "") -> None:
-        """Start background metadata fetch (title, size) for URL tab tasks; update row when done."""
         if not url or not url.startswith(("http://", "https://")):
             return
         worker = MetaFetchWorker(url=url, cookies_file=cookies_file or "", parent=self)
