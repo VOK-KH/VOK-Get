@@ -3,45 +3,70 @@ name: Build Windows
 on:
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build-windows:
-    runs-on: windows-2022
+    strategy:
+      matrix:
+        architecture: [x86_64]
+    runs-on: windows-2019
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: uv sync --extra dev
-
-      - name: Build with PyInstaller
-        shell: pwsh
         run: |
-          $VERSION = (Select-String -Path "pyproject.toml" -Pattern '^version\s*=\s*"(.*)"').Matches[0].Groups[1].Value
+          pip install -r requirements.txt
+
+      - name: Build with Nuitka
+        run: |
+          $VERSION = python -c "from app.common.setting import VERSION; print(VERSION)"
           Write-Host "VERSION=$VERSION"
           echo "VERSION=$VERSION" >> $env:GITHUB_ENV
-          uv run pyinstaller vok.spec --clean --noconfirm
+          
 
-      - name: Create zip archive
+      - name: Download and extract tools
         shell: pwsh
         run: |
-          $zipFile = "VOK-v${{ env.VERSION }}-Windows-x86_64.zip"
-          Compress-Archive -Path "dist\VOK\*" -DestinationPath $zipFile
-          Write-Output "Created $zipFile"
+          # Setup variables
+          $ZIP_URL = "https://github.com/VOK-KH/VOK-Get/releases/download/v0.2.0/Windows-${{ matrix.architecture }}.zip"
+          $DEST_DIR = "dist/VOK-Get.dist/tools"
 
-      - name: Upload portable zip
+          # download zip
+          Write-Output "Downloading package from $ZIP_URL..."
+          Invoke-WebRequest -Uri $ZIP_URL -OutFile "$env:TEMP/package.zip"
+
+          # unzip
+          Write-Output "Extracting package..."
+          Expand-Archive -Path "$env:TEMP/package.zip" -DestinationPath $DEST_DIR -Force
+
+          # delete zip
+          Remove-Item "$env:TEMP/package.zip" -Force
+
+          Write-Output "Download and extraction complete!"
+
+      - name: Download Inno Setup Translation Files
+        run: |
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl"
+
+      - name: Build Installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
+        with:
+          path: VOK-Get.iss
+
+      - name: Upload Installer
         uses: actions/upload-artifact@v4
         with:
-          name: VOK-v${{ env.VERSION }}-Windows-x86_64
-          path: VOK-v${{ env.VERSION }}-Windows-x86_64.zip
+          name: VOK-Get-v${{ env.VERSION }}-Windows-${{ matrix.architecture }}-Setup
+          path: dist/VOK-Get-v${{ env.VERSION }}-Windows-${{ matrix.architecture }}-Setup.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOK-Get-v${{ env.VERSION }}-Windows-${{ matrix.architecture }}
+          path: dist/VOK-Get.dist
 

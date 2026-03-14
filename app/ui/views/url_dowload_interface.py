@@ -222,7 +222,7 @@ class UrlDownloadInterface(QWidget):
         if not text:
             self._emit_message(
                 "warning", self.tr("Empty input"),
-                self.tr("Please enter a video URL."),
+                self.tr("https://  —  YouTube, TikTok, Douyin, Kuaishou, Instagram, Facebook, Pinterest, Twitter/X …"),
                 INFOBAR_MS_WARNING,
             )
             return

@@ -49,7 +49,6 @@ from app.ui.components.task_command_bar import TaskCommandBar
 from app.ui.dialogs import (
     AddLinkDialog,
     ClipboardSettingsDialog,
-    ClearOldTasksDialog,
     DownloadSettingsDialog,
 )
 from app.common.format import format_size
@@ -456,24 +455,20 @@ class TaskDownloadInterface(QWidget):
                 None,
             )
 
-        # If there are finished/failed rows, prompt to clear them first
-        _FINISHED = {_STATUS_DONE, _STATUS_ERROR, _STATUS_CANCELED}
-        done_rows = [
+        # Runnable = Pending or Canceled (so cancel + start runs from current row)
+        runnable_indices = [
             i for i in range(self.model.rowCount())
-            if (t := self.model.get_task(i)) and t.get("status") in _FINISHED
-        ]
-        if done_rows:
-            dlg = ClearOldTasksDialog(len(done_rows), self)
-            if dlg.exec_():  # "Clear & Start"
-                self.model.remove_selected(done_rows)
-            # "Start Anyway" or X → continue without clearing
-
-        # Only dispatch pending tasks to the engine
-        tasks_to_run = [
-            t for i in range(self.model.rowCount())
             if (t := self.model.get_task(i)) is not None
-            and t.get("status") == _STATUS_PENDING
+            and t.get("status") in (_STATUS_PENDING, _STATUS_CANCELED)
         ]
+        canceled_indices = [
+            i for i in runnable_indices
+            if self.model.get_task(i).get("status") == _STATUS_CANCELED
+        ]
+        if canceled_indices:
+            self.model.retry_rows(canceled_indices)
+        tasks_to_run = [self.model.get_task(i) for i in runnable_indices]
+
         if not tasks_to_run:
             self.message_requested.emit(
                 "warning",
