@@ -73,8 +73,9 @@ jobs:
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         with:
+          tag_name: ${{ github.event.release.tag_name }}
           files: |
             VOK-Get-v${{ env.VERSION }}-Windows-${{ matrix.architecture }}.zip
             dist/VOK-Get-v${{ env.VERSION }}-Windows-${{ matrix.architecture }}-Setup.exe
@@ -143,12 +144,14 @@ jobs:
 
           if [ $attempt -eq $max_attempts ]; then
               echo "Failed to create DMG after $max_attempts attempts"
+              exit 1
           fi
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         with:
+          tag_name: ${{ github.event.release.tag_name }}
           files: VOK-Get-v${{ env.VERSION }}-macOS-${{ matrix.architecture }}.dmg
 
   build-macos-13-x86_64:
@@ -212,8 +215,9 @@ jobs:
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         with:
+          tag_name: ${{ github.event.release.tag_name }}
           files: VOK-Get-v${{ env.VERSION }}-macOS-${{ matrix.architecture }}.dmg
 
   build-ubuntu:
@@ -272,6 +276,7 @@ jobs:
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         with:
+          tag_name: ${{ github.event.release.tag_name }}
           files: VOK-Get-v${{ env.VERSION }}-Linux-${{ matrix.architecture }}.zip
