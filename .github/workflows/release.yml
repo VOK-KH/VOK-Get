@@ -91,18 +91,24 @@ jobs:
           echo "VERSION=$VERSION" >> $env:GITHUB_ENV
           uv run pyinstaller vok.spec --clean --noconfirm
 
-      - name: Build installer
-        id: installer
+      - name: Ensure Inno Setup is available
         shell: pwsh
-        continue-on-error: true
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (Test-Path $iscc) {
-            & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=$env:VERSION"
-          } else {
-            Write-Host "Inno Setup not found at $iscc, skipping installer"
+          if (!(Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+
+          if (!(Test-Path $iscc)) {
+            Write-Error "Inno Setup is not available at $iscc"
             exit 1
           }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=$env:VERSION"
 
       - name: Create zip archive
         shell: pwsh
@@ -118,9 +124,7 @@ jobs:
         run: |
           $tag = "${{ needs.prepare.outputs.tag }}"
           gh release upload $tag "VOK-v$env:VERSION-Windows-x86_64.zip" --clobber
-          if (Test-Path "dist\VOK-v$env:VERSION-Windows-x86_64-Setup.exe") {
-            gh release upload $tag "dist\VOK-v$env:VERSION-Windows-x86_64-Setup.exe" --clobber
-          }
+          gh release upload $tag "dist\VOK-v$env:VERSION-Windows-x86_64-Setup.exe" --clobber
 
   build-macos:
     needs: [prepare]

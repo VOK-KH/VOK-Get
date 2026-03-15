@@ -34,6 +34,25 @@ jobs:
           "version=$VERSION" >> $env:GITHUB_OUTPUT
           uv run pyinstaller vok.spec --clean --noconfirm
 
+      - name: Ensure Inno Setup is available
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+
+          if (!(Test-Path $iscc)) {
+            Write-Error "Inno Setup is not available at $iscc"
+            exit 1
+          }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=$env:VERSION"
+
       - name: Create zip archive
         shell: pwsh
         run: |
@@ -46,4 +65,10 @@ jobs:
         with:
           name: VOK-v${{ steps.version.outputs.version }}-Windows-x86_64
           path: VOK-v${{ steps.version.outputs.version }}-Windows-x86_64.zip
+
+      - name: Upload installer exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: VOK-v${{ steps.version.outputs.version }}-Windows-x86_64-Setup
+          path: dist/VOK-v${{ steps.version.outputs.version }}-Windows-x86_64-Setup.exe
 
