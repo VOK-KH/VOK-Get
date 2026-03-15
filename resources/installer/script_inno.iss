@@ -15,7 +15,8 @@
 #endif
 
 #ifndef MySetupIconFile
-  #define MySetupIconFile "resources\\icon.ico"
+  ; Path relative to script dir (resources/installer/) -> ../icon.ico
+  #define MySetupIconFile "..\icon.ico"
 #endif
 
 #define MyAppName "VOK Downloader"
