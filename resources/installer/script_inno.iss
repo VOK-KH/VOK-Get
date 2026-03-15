@@ -6,6 +6,18 @@
   #define MyAppVersion "0.1.0"
 #endif
 
+#ifndef MyDistDir
+  #define MyDistDir "dist"
+#endif
+
+#ifndef MyOutputDir
+  #define MyOutputDir "dist"
+#endif
+
+#ifndef MySetupIconFile
+  #define MySetupIconFile "resources\\icon.ico"
+#endif
+
 #define MyAppName "VOK Downloader"
 #define MyAppPublisher "VOK"
 #define MyAppURL "https://github.com/k10978311-ai/VOK-Get"
@@ -24,9 +36,9 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
-OutputDir=..\..\dist
+OutputDir={#MyOutputDir}
 OutputBaseFilename=VOK-v{#MyAppVersion}-Windows-x86_64-Setup
-SetupIconFile=..\icon.ico
+SetupIconFile={#MySetupIconFile}
 SolidCompression=yes
 WizardStyle=modern
 
@@ -37,8 +49,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\..\dist\VOK\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\dist\VOK\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyDistDir}\VOK\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyDistDir}\VOK\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

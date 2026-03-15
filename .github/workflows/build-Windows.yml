@@ -51,7 +51,11 @@ jobs:
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=$env:VERSION"
+          $workspace = $env:GITHUB_WORKSPACE
+          $distDir = "$workspace\dist"
+          $outputDir = "$workspace\dist"
+          $iconFile = "$workspace\resources\icon.ico"
+          & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=$env:VERSION" "/DMyDistDir=$distDir" "/DMyOutputDir=$outputDir" "/DMySetupIconFile=$iconFile"
 
       - name: Create zip archive
         shell: pwsh
