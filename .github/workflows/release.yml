@@ -2,8 +2,12 @@ name: Release
 
 on:
   release:
-    types: [published]
+    types: [created]
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: true
 
 permissions:
   contents: write
@@ -12,7 +16,29 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.draft == true)
+    outputs:
+      tag: ${{ steps.set_tag.outputs.tag }}
+    steps:
+      - name: Create draft release
+        if: github.event_name == 'workflow_dispatch'
+        run: gh release create "${{ inputs.tag_name }}" --draft --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set tag output
+        id: set_tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
+          fi
+
   build-windows:
+    needs: [prepare]
     runs-on: windows-2022
     steps:
       - name: Checkout code
@@ -38,10 +64,17 @@ jobs:
           uv run pyinstaller vok.spec --clean --noconfirm
 
       - name: Build installer
+        id: installer
         shell: pwsh
+        continue-on-error: true
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=${{ env.VERSION }}"
+          if (Test-Path $iscc) {
+            & $iscc "resources\installer\script_inno.iss" "/DMyAppVersion=${{ env.VERSION }}"
+          } else {
+            Write-Host "Inno Setup not found at $iscc, skipping installer"
+            exit 1
+          }
 
       - name: Create zip archive
         shell: pwsh
@@ -51,13 +84,18 @@ jobs:
           Write-Output "Created $zipFile"
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            VOK-v${{ env.VERSION }}-Windows-x86_64.zip
-            dist/VOK-v${{ env.VERSION }}-Windows-x86_64-Setup.exe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ needs.prepare.outputs.tag }}"
+          gh release upload $tag "VOK-v${{ env.VERSION }}-Windows-x86_64.zip" --clobber
+          if (Test-Path "dist\VOK-v${{ env.VERSION }}-Windows-x86_64-Setup.exe") {
+            gh release upload $tag "dist\VOK-v${{ env.VERSION }}-Windows-x86_64-Setup.exe" --clobber
+          }
 
   build-macos:
+    needs: [prepare]
     runs-on: macos-15
     steps:
       - name: Checkout code
@@ -103,11 +141,12 @@ jobs:
           fi
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: VOK-v${{ env.VERSION }}-macOS-arm64.dmg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.prepare.outputs.tag }}" "VOK-v${{ env.VERSION }}-macOS-arm64.dmg" --clobber
 
   build-linux-x86_64:
+    needs: [prepare]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
@@ -143,7 +182,15 @@ jobs:
           cd dist && zip -r "../VOK-v${{ env.VERSION }}-Linux-x86_64.zip" VOK
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: VOK-v${{ env.VERSION }}-Linux-x86_64.zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.prepare.outputs.tag }}" "VOK-v${{ env.VERSION }}-Linux-x86_64.zip" --clobber
 
+  publish-release:
+    needs: [prepare, build-windows, build-macos, build-linux-x86_64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        run: gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

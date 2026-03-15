@@ -8,7 +8,7 @@
 | **build-macOS-Apple.yml** | `workflow_dispatch` | Build macOS ARM64 (Apple Silicon), upload DMG |
 | **build-macOS-Intel.yml** | `workflow_dispatch` | Build macOS x86_64, upload DMG |
 | **build-Windows.yml** | `workflow_dispatch` | Build Windows x86_64, Inno Setup installer + artifacts |
-| **release.yml** | `release: types: [published]` | Full release: build all platforms and upload to the GitHub Release |
+| **release.yml** | `release: types: [created]` (draft only) or `workflow_dispatch` | Build all platforms, upload to draft release, then publish (avoids immutable release errors) |
 
 ---
 
@@ -57,4 +57,4 @@ The workflows assume build output already exists but **do not run the actual bui
 ## How to Test
 
 - **Build workflows:** Run manually via **Actions → [workflow] → Run workflow**.
-- **Release:** Create a new release (draft or publish); publishing will trigger `release.yml`. Ensure the tag exists and that `tag_name` in the workflow matches your release tag.
+- **Release:** Create a new release **as a draft** with the desired tag; `release.yml` runs on draft creation, builds all platforms, uploads assets to the draft, then publishes the release. Alternatively run **Actions → Release → Run workflow** and provide the tag (e.g. `v1.0.0`); the workflow creates a draft, builds, uploads, then publishes.
