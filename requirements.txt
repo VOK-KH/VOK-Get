@@ -58,7 +58,7 @@ Pygments==2.19.2
 pyinstaller==6.16.0
 pyinstaller-hooks-contrib==2025.9
 PyJWT==2.11.0
-pyparsing==3.2.5
+pyparsing==3.3.2
 PyQt-Fluent-Widgets==1.11.1
 PyQt5==5.15.11
 PyQt5-Frameless-Window==0.8.0
