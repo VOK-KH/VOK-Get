@@ -385,8 +385,15 @@ class TaskDownloadInterface(QWidget):
             url=row_data["url"],
         )
         self.status_label.setText(self.tr(f"Analyzing: {row_data['host'] or canonical}…"))
-        cookies = load_settings().get("cookies_file", "")
-        worker = MetaFetchWorker(url=canonical, cookies_file=cookies, parent=self)
+        s = load_settings()
+        cookies = s.get("cookies_file", "")
+        cookies_browser = s.get("cookies_from_browser", "")
+        worker = MetaFetchWorker(
+            url=canonical,
+            cookies_file=cookies,
+            cookies_from_browser=cookies_browser,
+            parent=self,
+        )
 
         def _on_data(info: dict, r=row_idx) -> None:
             updates = metadata_updates_from_info(info)

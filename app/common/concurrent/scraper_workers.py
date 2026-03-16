@@ -26,10 +26,11 @@ class MetaFetchWorker(QThread):
     data_ready = pyqtSignal(dict)
     finished_signal = pyqtSignal(bool, str)
 
-    def __init__(self, url: str, cookies_file: str = "", parent=None):
+    def __init__(self, url: str, cookies_file: str = "", cookies_from_browser: str = "", parent=None):
         super().__init__(parent)
         self.url = url.strip()
         self.cookies_file = cookies_file.strip()
+        self.cookies_from_browser = (cookies_from_browser or "").strip().lower()
 
     def run(self) -> None:
         if not self.url:
@@ -58,6 +59,11 @@ class MetaFetchWorker(QThread):
         }
         if self.cookies_file:
             opts["cookiefile"] = self.cookies_file
+        elif self.cookies_from_browser:
+            try:
+                opts["cookiesfrombrowser"] = (self.cookies_from_browser,)
+            except Exception:
+                pass
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -107,11 +113,12 @@ class CommentsWorker(QThread):
     comments_ready = pyqtSignal(list)
     finished_signal = pyqtSignal(bool, str)
 
-    def __init__(self, url: str, max_comments: int = 100, cookies_file: str = "", parent=None):
+    def __init__(self, url: str, max_comments: int = 100, cookies_file: str = "", cookies_from_browser: str = "", parent=None):
         super().__init__(parent)
         self.url = url.strip()
         self.max_comments = max(1, max_comments)
         self.cookies_file = cookies_file.strip()
+        self.cookies_from_browser = (cookies_from_browser or "").strip().lower()
 
     def run(self) -> None:
         if not self.url:
@@ -148,6 +155,11 @@ class CommentsWorker(QThread):
         }
         if self.cookies_file:
             opts["cookiefile"] = self.cookies_file
+        elif self.cookies_from_browser:
+            try:
+                opts["cookiesfrombrowser"] = (self.cookies_from_browser,)
+            except Exception:
+                pass
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -177,6 +189,7 @@ class SearchWorker(QThread):
         platform: str = "YouTube",
         is_hashtag: bool = False,
         cookies_file: str = "",
+        cookies_from_browser: str = "",
         parent=None,
     ):
         super().__init__(parent)
@@ -184,6 +197,7 @@ class SearchWorker(QThread):
         self.platform = platform
         self.is_hashtag = is_hashtag
         self.cookies_file = cookies_file.strip()
+        self.cookies_from_browser = (cookies_from_browser or "").strip().lower()
 
     def run(self) -> None:
         if not self.keyword:
@@ -210,6 +224,11 @@ class SearchWorker(QThread):
         }
         if self.cookies_file:
             opts["cookiefile"] = self.cookies_file
+        elif self.cookies_from_browser:
+            try:
+                opts["cookiesfrombrowser"] = (self.cookies_from_browser,)
+            except Exception:
+                pass
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -245,10 +264,11 @@ class PlaylistFetchWorker(QThread):
     entries_ready = pyqtSignal(list)
     finished_signal = pyqtSignal(bool, str)
 
-    def __init__(self, url: str, cookies_file: str = "", parent=None):
+    def __init__(self, url: str, cookies_file: str = "", cookies_from_browser: str = "", parent=None):
         super().__init__(parent)
         self.url = url.strip()
         self.cookies_file = cookies_file.strip()
+        self.cookies_from_browser = (cookies_from_browser or "").strip().lower()
         self._cancelled = False
 
     def cancel(self) -> None:
@@ -283,6 +303,11 @@ class PlaylistFetchWorker(QThread):
         }
         if self.cookies_file:
             opts["cookiefile"] = self.cookies_file
+        elif self.cookies_from_browser:
+            try:
+                opts["cookiesfrombrowser"] = (self.cookies_from_browser,)
+            except Exception:
+                pass
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:

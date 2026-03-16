@@ -317,6 +317,28 @@ class SettingsView(BaseView):
         self._cookies_card.hBoxLayout.addSpacing(16)
         self._adv_group.addSettingCard(self._cookies_card)
 
+        # Cookies from browser (alternative to cookies file; helps Instagram etc.)
+        self._cookies_browser_card = SettingCard(
+            FluentIcon.GLOBE,
+            self.tr("Cookies from browser"),
+            self.tr("Use cookies from a browser (e.g. for Instagram) instead of a file. Leave at None to use cookies file only."),
+        )
+        self._cookies_browser_combo = ComboBox()
+        self._cookies_browser_combo.setMinimumWidth(140)
+        for label, value in [
+            (self.tr("None"), ""),
+            ("Chrome", "chrome"),
+            ("Firefox", "firefox"),
+            ("Edge", "edge"),
+            ("Brave", "brave"),
+            ("Opera", "opera"),
+            ("Vivaldi", "vivaldi"),
+        ]:
+            self._cookies_browser_combo.addItem(label, value)
+        self._cookies_browser_card.hBoxLayout.addWidget(self._cookies_browser_combo)
+        self._cookies_browser_card.hBoxLayout.addSpacing(16)
+        self._adv_group.addSettingCard(self._cookies_browser_card)
+
         # ── Exit behavior cards ───────────────────────────────────────────
         self._exit_confirm_card = SettingCard(
             FluentIcon.POWER_BUTTON,
@@ -547,6 +569,10 @@ class SettingsView(BaseView):
             self.tr("Path to cookies.txt (optional)")
         )
         self._cookies_browse_btn.setText(self.tr("Browse\u2026"))
+        self._cookies_browser_card.titleLabel.setText(self.tr("Cookies from browser"))
+        self._cookies_browser_card.contentLabel.setText(
+            self.tr("Use cookies from a browser (e.g. for Instagram) instead of a file. Leave at None to use cookies file only.")
+        )
         
         # Exit configuration cards
         self._exit_confirm_card.titleLabel.setText(self.tr("Confirm before exit"))
@@ -613,6 +639,9 @@ class SettingsView(BaseView):
         self._frag_combo.setCurrentText(str(int(s.get("concurrent_fragments", 4))))
         self._color_edit.setText(s.get("theme_color", "#0078D4"))
         self._cookies_edit.setText(s.get("cookies_file", ""))
+        browser = s.get("cookies_from_browser", "") or ""
+        idx = self._cookies_browser_combo.findData(browser)
+        self._cookies_browser_combo.setCurrentIndex(max(0, idx) if idx >= 0 else 0)
         self._sound_complete_switch.setChecked(s.get("sound_alert_on_complete", True))
         self._sound_error_switch.setChecked(s.get("sound_alert_on_error", True))
         self._auto_reset_switch.setChecked(s.get("auto_reset_link_before_download", True))
@@ -655,6 +684,7 @@ class SettingsView(BaseView):
         
         self._color_edit.editingFinished.connect(self._save)
         self._cookies_edit.editingFinished.connect(self._save)
+        self._cookies_browser_combo.currentIndexChanged.connect(self._save)
         self._language_combo.currentTextChanged.connect(self._on_language_changed)
 
     def _reset(self) -> None:
@@ -683,6 +713,8 @@ class SettingsView(BaseView):
         s["theme"] = _THEME_REVERSE.get(vok_config.themeMode.value, "Dark")
         s["theme_color"] = color_hex
         s["cookies_file"] = self._cookies_edit.text().strip()
+        browser = self._cookies_browser_combo.currentData()
+        s["cookies_from_browser"] = (browser or "").strip()
         s["sound_alert_on_complete"] = self._sound_complete_switch.isChecked()
         s["sound_alert_on_error"] = self._sound_error_switch.isChecked()
         s["auto_reset_link_before_download"] = self._auto_reset_switch.isChecked()

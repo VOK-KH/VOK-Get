@@ -80,6 +80,7 @@ class DownloadWorker(QThread):
         single_video: bool = True,
         concurrent_fragments: int = 4,
         cookies_file: str = "",
+        cookies_from_browser: str = "",
         job_id: str | None = None,
         parent=None,
     ):
@@ -90,6 +91,7 @@ class DownloadWorker(QThread):
         self.single_video = single_video
         self.concurrent_fragments = max(1, min(16, int(concurrent_fragments)))
         self.cookies_file = cookies_file.strip() if cookies_file else ""
+        self.cookies_from_browser = (cookies_from_browser or "").strip().lower()
         self.job_id = job_id or url[:80]
         self._cancelled = False
         self._final_path = ""
@@ -215,7 +217,15 @@ class DownloadWorker(QThread):
                     return
                 self._emit(f"[warning] {msg}")
 
-            def error(self, msg): self._emit(f"[error] {msg}")
+            def error(self, msg: str) -> None:
+                self._emit(f"[error] {msg}")
+                # Hint for Instagram (and similar) cookie-related errors
+                m = msg.lower()
+                if "instagram" in m and ("empty media response" in m or "login" in m or "cookies" in m):
+                    self._emit(
+                        "[info] Instagram often requires login: set a cookies file in Settings → Advanced → Cookies file "
+                        "(export with a browser extension like Get cookies.txt LOCALLY), or use \"Cookies from browser\" if available."
+                    )
 
         # Resolve ffmpeg binary once (system PATH → imageio-ffmpeg fallback)
         _ffmpeg_path: str | None = None
@@ -263,6 +273,12 @@ class DownloadWorker(QThread):
         if self.cookies_file and os.path.isfile(self.cookies_file):
             opts["cookiefile"] = self.cookies_file
             log_emit(f"[info] Using cookies: {self.cookies_file}")
+        elif self.cookies_from_browser:
+            try:
+                opts["cookiesfrombrowser"] = (self.cookies_from_browser,)
+                log_emit(f"[info] Using cookies from browser: {self.cookies_from_browser}")
+            except Exception:
+                pass
 
         if is_mp3:
             opts["postprocessors"] = [
