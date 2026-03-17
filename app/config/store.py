@@ -51,6 +51,7 @@ _DEFAULTS = {
     "concurrent_downloads": 4,
     "concurrent_fragments": 8,
     "cookies_file": "",
+    "cookies_from_browser": "",  # e.g. "chrome", "firefox", "edge" for yt-dlp --cookies-from-browser
     "default_start_page": "Home",
     "sound_alert_on_complete": True,
     "sound_alert_on_error": True,

@@ -470,6 +470,18 @@ wheels = [
 ]
 
 [[package]]
+name = "instaloader"
+version = "4.15"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/38/f82de9f71d6b8403f5b752d8eab4e466ac99c237ec8c642548a544948f23/instaloader-4.15.tar.gz", hash = "sha256:baf1c29ba16f9d30f7c6e330a00bc1fca100522bb3a217d3c36ad620eb744685", size = 66295, upload-time = "2025-11-08T21:30:32.06Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/96/7a/2e878dff89aa2ec8ffa6367aad31975e5d457ff303b8ea7568fd284e301c/instaloader-4.15-py3-none-any.whl", hash = "sha256:ba897ec738c238bdc427ad3f4a3478c6d2db07055361f2373779af8227ac2c08", size = 68310, upload-time = "2025-11-08T21:30:30.777Z" },
+]
+
+[[package]]
 name = "lxml"
 version = "6.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3948,7 +3960,7 @@ wheels = [
 
 [[package]]
 name = "vok-get"
-version = "0.2.0"
+version = "1.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -3972,6 +3984,9 @@ dev = [
     { name = "pyinstaller" },
     { name = "ruff" },
 ]
+instagram = [
+    { name = "instaloader" },
+]
 tiktok = [
     { name = "yt-dlp", extra = ["curl-cffi"] },
 ]
@@ -3982,6 +3997,7 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
     { name = "imageio-ffmpeg", specifier = ">=0.6.0" },
+    { name = "instaloader", marker = "extra == 'instagram'", specifier = ">=4.10" },
     { name = "lxml", specifier = ">=5.0.0" },
     { name = "pillow", specifier = ">=11.3.0" },
     { name = "playwright", specifier = ">=1.40.0" },
@@ -3996,7 +4012,7 @@ requires-dist = [
     { name = "yt-dlp", specifier = ">=2024.1.0" },
     { name = "yt-dlp", extras = ["curl-cffi"], marker = "extra == 'tiktok'" },
 ]
-provides-extras = ["dev", "tiktok"]
+provides-extras = ["dev", "tiktok", "instagram"]
 
 [[package]]
 name = "xcffib"

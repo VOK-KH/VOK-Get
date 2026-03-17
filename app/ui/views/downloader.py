@@ -355,7 +355,10 @@ class DownloaderView(QFrame):
 
         s = load_settings()
         self._playlist_worker = PlaylistFetchWorker(
-            url, cookies_file=s.get("cookies_file", ""), parent=self
+            url,
+            cookies_file=s.get("cookies_file", ""),
+            cookies_from_browser=s.get("cookies_from_browser", ""),
+            parent=self,
         )
         self._playlist_worker.log_line.connect(self._log_append)
         self._playlist_worker.entries_ready.connect(self._on_entries_ready)
@@ -419,6 +422,7 @@ class DownloaderView(QFrame):
         fmt = self._dl_config_card.format_combo.currentText()
         out = self._output_dir()
         cookies = s.get("cookies_file", "")
+        cookies_browser = s.get("cookies_from_browser", "")
         jobs_and_entries: list[tuple[DownloadJob, dict]] = []
         for row in range(self._sel_table.rowCount()):
             chk = self._sel_table.item(row, 0)
@@ -426,8 +430,14 @@ class DownloaderView(QFrame):
                 entry = self._sel_entries[row]
                 url = entry.get("url", "")
                 if url:
-                    job = DownloadJob(url=url, output_dir=out, format_key=fmt,
-                                      single_video=True, cookies_file=cookies)
+                    job = DownloadJob(
+                        url=url,
+                        output_dir=out,
+                        format_key=fmt,
+                        single_video=True,
+                        cookies_file=cookies,
+                        cookies_from_browser=cookies_browser,
+                    )
                     jobs_and_entries.append((job, entry))
         if not jobs_and_entries:
             return
@@ -455,14 +465,23 @@ class DownloaderView(QFrame):
             self._progress_pct_label.setVisible(False)
         self._update_controls()
 
-    def _start_download_from_playlist(self, url: str, out: str, fmt: str, cookies: str) -> None:
+    def _start_download_from_playlist(
+        self, url: str, out: str, fmt: str, cookies: str, cookies_from_browser: str = ""
+    ) -> None:
         """Phase 1: one extract job (fetch playlist/profile). Phase 2: N separate download jobs."""
         if self._direct_playlist_worker and self._direct_playlist_worker.isRunning():
             return
-        self._direct_playlist_worker = PlaylistFetchWorker(url, cookies_file=cookies, parent=self)
+        self._direct_playlist_worker = PlaylistFetchWorker(
+            url,
+            cookies_file=cookies,
+            cookies_from_browser=cookies_from_browser,
+            parent=self,
+        )
         self._direct_playlist_worker.log_line.connect(self._log_append)
         self._direct_playlist_worker.entries_ready.connect(
-            lambda entries: self._on_direct_playlist_entries(entries, out, fmt, cookies)
+            lambda entries: self._on_direct_playlist_entries(
+                entries, out, fmt, cookies, cookies_from_browser
+            )
         )
         self._direct_playlist_worker.finished_signal.connect(self._on_direct_playlist_finished)
         self._set_profile_extract_controls(False)
@@ -472,7 +491,12 @@ class DownloaderView(QFrame):
         self._direct_playlist_worker.start()
 
     def _on_direct_playlist_entries(
-        self, entries: list, output_dir: str, format_key: str, cookies: str
+        self,
+        entries: list,
+        output_dir: str,
+        format_key: str,
+        cookies: str,
+        cookies_from_browser: str = "",
     ) -> None:
         """Phase 2: enqueue one download job per entry; failed jobs are skipped and next continues."""
         jobs_and_entries: list[tuple[DownloadJob, dict]] = []
@@ -486,6 +510,7 @@ class DownloaderView(QFrame):
                 format_key=format_key,
                 single_video=True,
                 cookies_file=cookies,
+                cookies_from_browser=cookies_from_browser,
             )
             jobs_and_entries.append((job, entry))
         if not jobs_and_entries:
@@ -761,6 +786,7 @@ class DownloaderView(QFrame):
         fmt = self._dl_config_card.format_combo.currentText()
         out = self._output_dir()
         cookies = s.get("cookies_file", "")
+        cookies_browser = s.get("cookies_from_browser", "")
 
         if self._mode_segmented.currentRouteKey() == "enhance":
             url = self._enhance_card.url()
@@ -787,6 +813,7 @@ class DownloaderView(QFrame):
                 format_key=fmt,
                 single_video=True,
                 cookies_file=cookies,
+                cookies_from_browser=cookies_browser,
             )
             self._enhance_job_options[job.job_id] = opts
             self._active_jobs.add(job.job_id)
@@ -812,7 +839,17 @@ class DownloaderView(QFrame):
             if len(raw) != len(urls):
                 self._log_append(f"Removed {len(raw) - len(urls)} duplicate URL(s).")
             jobs_and_urls = [
-                (DownloadJob(url=url, output_dir=out, format_key=fmt, single_video=True, cookies_file=cookies), url)
+                (
+                    DownloadJob(
+                        url=url,
+                        output_dir=out,
+                        format_key=fmt,
+                        single_video=True,
+                        cookies_file=cookies,
+                        cookies_from_browser=cookies_browser,
+                    ),
+                    url,
+                )
                 for url in urls
             ]
             rows_data = [(j.job_id, url, out, url, fmt) for j, url in jobs_and_urls]
@@ -835,7 +872,7 @@ class DownloaderView(QFrame):
             single_video = s.get("single_video_default", True)
             if not single_video and not (self._direct_playlist_worker and self._direct_playlist_worker.isRunning()):
                 # Profile/playlist URL: fetch entries then enqueue one job per video (uses concurrent_downloads)
-                self._start_download_from_playlist(url, out, fmt, cookies)
+                self._start_download_from_playlist(url, out, fmt, cookies, cookies_browser)
             else:
                 job = DownloadJob(
                     url=url,
@@ -843,6 +880,7 @@ class DownloaderView(QFrame):
                     format_key=fmt,
                     single_video=single_video,
                     cookies_file=cookies,
+                    cookies_from_browser=cookies_browser,
                 )
                 self._active_jobs.add(job.job_id)
                 self._add_download_row(job.job_id, url, out, url=job.url, format_key=fmt)

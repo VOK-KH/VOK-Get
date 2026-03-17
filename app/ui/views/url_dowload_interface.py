@@ -274,9 +274,15 @@ class UrlDownloadInterface(QWidget):
             self._fetch_worker.cancel()
             self._fetch_worker.wait()
 
-        cookies = load_settings().get("cookies_file", "")
-
-        self._fetch_worker = PlaylistFetchWorker(url=url, cookies_file=cookies, parent=self)
+        s = load_settings()
+        cookies = s.get("cookies_file", "")
+        cookies_browser = s.get("cookies_from_browser", "")
+        self._fetch_worker = PlaylistFetchWorker(
+            url=url,
+            cookies_file=cookies,
+            cookies_from_browser=cookies_browser,
+            parent=self,
+        )
         self._fetch_worker.entries_ready.connect(self._on_entries_ready)
         self._fetch_worker.finished_signal.connect(self._on_extraction_finished)
         self._fetch_worker.log_line.connect(

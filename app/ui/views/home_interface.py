@@ -144,10 +144,15 @@ class HomeInterface(QWidget):
         self._icon_workers.append(worker)
         worker.start()
 
-    def _start_metadata_fetch(self, url: str, cookies_file: str = "") -> None:
+    def _start_metadata_fetch(self, url: str, cookies_file: str = "", cookies_from_browser: str = "") -> None:
         if not url or not url.startswith(("http://", "https://")):
             return
-        worker = MetaFetchWorker(url=url, cookies_file=cookies_file or "", parent=self)
+        worker = MetaFetchWorker(
+            url=url,
+            cookies_file=cookies_file or "",
+            cookies_from_browser=cookies_from_browser or "",
+            parent=self,
+        )
         worker.data_ready.connect(self._on_metadata_ready)
 
         def _cleanup():
@@ -265,6 +270,7 @@ class HomeInterface(QWidget):
             "download_path": s.get("download_path", str(get_default_downloads_dir())),
             "download_format": s.get("download_format", "Best (video+audio)"),
             "cookies_file": s.get("cookies_file", ""),
+            "cookies_from_browser": s.get("cookies_from_browser", ""),
             "concurrent_downloads": int(s.get("concurrent_downloads", 2)),
             "concurrent_fragments": int(s.get("concurrent_fragments", 4)),
         }
@@ -366,6 +372,7 @@ class HomeInterface(QWidget):
         output_dir: str,
         format_key: str,
         cookies_file: str,
+        cookies_from_browser: str = "",
     ) -> DownloadJob:
         """Build a DownloadJob from a task dict and config."""
         url = task.get("url") or task.get("title", "")
@@ -375,6 +382,7 @@ class HomeInterface(QWidget):
             format_key=format_key,
             single_video=True,
             cookies_file=cookies_file,
+            cookies_from_browser=cookies_from_browser,
         )
 
     def _db_delete_rows(self, row_indices: list[int]) -> None:
@@ -430,7 +438,11 @@ class HomeInterface(QWidget):
         self._persist_task(row_idx, task_dict)
         if url_or_path.startswith(("http://", "https://")):
             self._start_host_icon_fetch(url_or_path)
-            self._start_metadata_fetch(url_or_path, cfg.get("cookies_file", ""))
+            self._start_metadata_fetch(
+                url_or_path,
+                cfg.get("cookies_file", ""),
+                cfg.get("cookies_from_browser", ""),
+            )
         self.switch_to_tasks()
 
     def _on_bulk_submitted(self, items: list) -> None:
@@ -458,7 +470,11 @@ class HomeInterface(QWidget):
             self._persist_task(row_idx, task_dict)
             if url.startswith(("http://", "https://")):
                 self._start_host_icon_fetch(url)
-                self._start_metadata_fetch(url, cfg.get("cookies_file", ""))
+                self._start_metadata_fetch(
+                    url,
+                    cfg.get("cookies_file", ""),
+                    cfg.get("cookies_from_browser", ""),
+                )
         self.switch_to_tasks()
 
     # ── Download engine ───────────────────────────────────────────────────
@@ -469,6 +485,7 @@ class HomeInterface(QWidget):
         out = cfg["download_path"]
         fmt = cfg["download_format"]
         cookies = cfg["cookies_file"]
+        cookies_browser = cfg.get("cookies_from_browser", "")
         self._manager.set_max_workers(cfg["concurrent_downloads"])
         self._manager.set_concurrent_fragments(cfg["concurrent_fragments"])
 
@@ -480,7 +497,7 @@ class HomeInterface(QWidget):
                 continue
 
             output_dir = self._output_dir_for_task(task, out)
-            job = self._build_job(task, output_dir, fmt, cookies)
+            job = self._build_job(task, output_dir, fmt, cookies, cookies_browser)
             row_idx = self._resolve_row_for_task(task)
 
             self._active_jobs.add(job.job_id)

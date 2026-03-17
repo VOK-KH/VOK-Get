@@ -320,7 +320,12 @@ class ScraperView(BaseView):
             return
 
         s = load_settings()
-        self._meta_worker = MetaFetchWorker(url, cookies_file=s.get("cookies_file", ""), parent=self)
+        self._meta_worker = MetaFetchWorker(
+            url,
+            cookies_file=s.get("cookies_file", ""),
+            cookies_from_browser=s.get("cookies_from_browser", ""),
+            parent=self,
+        )
         self._meta_worker.log_line.connect(lambda m: add_log_entry("info", m))
         self._meta_worker.data_ready.connect(self._on_stats_ready)
         self._meta_worker.finished_signal.connect(self._on_stats_done)
@@ -387,6 +392,7 @@ class ScraperView(BaseView):
             url,
             max_comments=self._comments_max.value(),
             cookies_file=s.get("cookies_file", ""),
+            cookies_from_browser=s.get("cookies_from_browser", ""),
             parent=self,
         )
         self._comments_worker.log_line.connect(lambda m: add_log_entry("info", m))
@@ -471,6 +477,7 @@ class ScraperView(BaseView):
             platform=self._search_platform.currentText(),
             is_hashtag=self._hashtag_switch.isChecked(),
             cookies_file=s.get("cookies_file", ""),
+            cookies_from_browser=s.get("cookies_from_browser", ""),
             parent=self,
         )
         self._search_worker.log_line.connect(lambda m: add_log_entry("info", m))

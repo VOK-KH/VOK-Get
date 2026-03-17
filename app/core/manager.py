@@ -12,7 +12,7 @@ from app.common.concurrent import DownloadWorker
 class DownloadJob:
     """One download request."""
 
-    __slots__ = ("url", "output_dir", "format_key", "single_video", "cookies_file", "job_id")
+    __slots__ = ("url", "output_dir", "format_key", "single_video", "cookies_file", "cookies_from_browser", "job_id")
 
     def __init__(
         self,
@@ -21,6 +21,7 @@ class DownloadJob:
         format_key: str = "Best (video+audio)",
         single_video: bool = True,
         cookies_file: str = "",
+        cookies_from_browser: str = "",
         job_id: str | None = None,
     ):
         self.url = url.strip()
@@ -28,6 +29,7 @@ class DownloadJob:
         self.format_key = format_key
         self.single_video = single_video
         self.cookies_file = cookies_file or ""
+        self.cookies_from_browser = (cookies_from_browser or "").strip().lower()
         self.job_id = job_id or f"{self.url[:64]}_{uuid.uuid4().hex[:8]}"
 
 
@@ -84,6 +86,7 @@ class DownloadManager(QObject):
             single_video=job.single_video,
             concurrent_fragments=self._concurrent_fragments,
             cookies_file=job.cookies_file,
+            cookies_from_browser=job.cookies_from_browser,
             job_id=job.job_id,
         )
 
