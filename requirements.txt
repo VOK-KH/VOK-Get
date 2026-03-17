@@ -105,4 +105,4 @@ tzdata==2025.2
 uritemplate==4.2.0
 urllib3==2.5.0
 uv==0.10.0
-uvicorn==0.41.0
+uvicorn==0.42.0
