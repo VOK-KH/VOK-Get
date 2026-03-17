@@ -15,7 +15,9 @@ from app.common.database import DBInitializer, DatabaseThread, sqlSignalBus, Sql
 from app.common.signal_bus import signal_bus
 from app.common.logger import Logger
 from app.common.exit_app import initialize_exit_handler, ExitHandler
+from app.common.utils import openUrl
 from app.config import load_settings
+from app.config.store import FEEDBACK_URL
 from app.ui.components.system_tray_icon import SystemTrayIcon
 
 from ..common.icon import Icon
@@ -143,15 +145,38 @@ class MainWindow(MSFluentWindow):
     def onAppError(self, message: str):
         """Show unhandled-exception dialog and copy error to clipboard."""
         QApplication.clipboard().setText(message)
-        w = MessageBox(
-            "Unhandled exception occurred",
-            "The error has been copied to the clipboard and written to the log.",
-            self,
+        self._show_alert(
+            self.tr("Unhandled exception"),
+            self.tr("Error copied to clipboard and log. Report?"),
+            show_yes=True,
+            yes_label=self.tr("Report"),
+            yes_slot=lambda: openUrl(FEEDBACK_URL),
         )
-        w.cancelButton.setText("Close")
-        w.yesButton.hide()
-        w.buttonLayout.insertStretch(0, 1)
-        w.exec()
+
+    def _show_alert(
+        self,
+        title: str,
+        content: str,
+        *,
+        show_yes: bool = False,
+        yes_label: str | None = None,
+        yes_slot=None,
+        cancel_label: str | None = None,
+    ):
+        """Show a modal MessageBox; optionally one Confirm button that runs yes_slot."""
+        w = MessageBox(title, content, self)
+        if cancel_label is not None:
+            w.cancelButton.setText(cancel_label)
+        if show_yes:
+            if yes_label is not None:
+                w.yesButton.setText(yes_label)
+            if w.exec() and yes_slot is not None:
+                yes_slot()
+        else:
+            w.yesButton.hide()
+            w.cancelButton.setText(cancel_label or self.tr("Close"))
+            w.buttonLayout.insertStretch(0, 1)
+            w.exec()
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 

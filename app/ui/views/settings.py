@@ -5,7 +5,7 @@ import webbrowser
 import app
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QColorDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QColorDialog, QFileDialog
 
 from qfluentwidgets import (
     ComboBox,
@@ -14,6 +14,7 @@ from qfluentwidgets import (
     InfoBarPosition,
     LargeTitleLabel,
     LineEdit,
+    MessageBox,
     OptionsConfigItem,
     OptionsSettingCard,
     PushSettingCard,
@@ -33,6 +34,7 @@ from app.common.i18n import apply_language, LANGUAGES
 from app.common.paths import get_default_downloads_dir
 from app.common.state import add_log_entry
 from app.config import get_default_settings, load_settings, save_settings
+from app.config.store import AUTHOR, YEAR
 from app.core.updater import check_update, download_update, install_update
 from app.common.downloader_helpers import DOWNLOAD_FORMATS
 from app.ui.theme import apply_app_palette
@@ -389,15 +391,13 @@ class SettingsView(BaseView):
 
         self._layout.addWidget(self._adv_group)
 
-        # ── Software update group ─────────────────────────────────────────
-        self._updates_group = SettingCardGroup(self.tr("Software update"), self)
+        # ── Update group ───────────────────────────────────────────────────
+        self._updates_group = SettingCardGroup(self.tr("Update"), self)
 
         self._auto_update_card = SettingCard(
             FluentIcon.SYNC,
-            self.tr("Check for updates when the application starts"),
-            self.tr(
-                "The new version will be more stable and have more features"
-            ),
+            self.tr("Check for updates on startup"),
+            self.tr("Notify when a new version is available"),
         )
         self._auto_update_switch = SwitchButton()
         self._auto_update_switch.setChecked(True)
@@ -446,8 +446,12 @@ class SettingsView(BaseView):
         self._about_card = SettingCard(
             FluentIcon.INFO,
             self.tr("About"),
-            self.tr("\u00a9 Copyright 2025, VOK Downloader \u2013 Version")
-            + f" {app.__version__}",
+            "© "
+            + self.tr("Copyright")
+            + f" {YEAR}, {AUTHOR}. "
+            + self.tr("Version")
+            + " v"
+            + app.__version__,
         )
         self._check_update_btn = PushButton(self.tr("Check update"))
         self._check_update_btn.setIcon(FluentIcon.SYNC)
@@ -476,7 +480,7 @@ class SettingsView(BaseView):
         self._perf_group.titleLabel.setText(self.tr("Performance"))
         self._appear_group.titleLabel.setText(self.tr("Appearance"))
         self._adv_group.titleLabel.setText(self.tr("Advanced"))
-        self._updates_group.titleLabel.setText(self.tr("Software update"))
+        self._updates_group.titleLabel.setText(self.tr("Update"))
         self._about_group.titleLabel.setText(self.tr("About"))
 
         # Download cards
@@ -594,14 +598,12 @@ class SettingsView(BaseView):
         )
         self._reset_btn.setText(self.tr("Reset to defaults"))
 
-        # Updates cards
+        # Update cards
         self._auto_update_card.titleLabel.setText(
-            self.tr("Check for updates when the application starts")
+            self.tr("Check for updates on startup")
         )
         self._auto_update_card.contentLabel.setText(
-            self.tr(
-                "The new version will be more stable and have more features"
-            )
+            self.tr("Notify when a new version is available")
         )
 
         # About cards
@@ -622,8 +624,12 @@ class SettingsView(BaseView):
         self._feedback_btn.setText(self.tr("Provide feedback"))
         self._about_card.titleLabel.setText(self.tr("About"))
         self._about_card.contentLabel.setText(
-            self.tr("\u00a9 Copyright 2025, VOK Downloader \u2013 Version")
-            + f" {app.__version__}"
+            "© "
+            + self.tr("Copyright")
+            + f" {YEAR}, {AUTHOR}. "
+            + self.tr("Version")
+            + " v"
+            + app.__version__
         )
         self._check_update_btn.setText(self.tr("Check update"))
 
@@ -806,14 +812,16 @@ class SettingsView(BaseView):
                 parent=self,
             )
             return
-        reply = QMessageBox.question(
-            self,
+        w = MessageBox(
             self.tr("Update available"),
-            self.tr("New version %1 is available.\n\nUpdate now? The app will close and the new version will be installed.").replace("%1", version),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            self.tr(
+                "New version %1 is available.\n\nUpdate now? The app will close and the new version will be installed."
+            ).replace("%1", version),
+            self,
         )
-        if reply != QMessageBox.Yes:
+        w.yesButton.setText(self.tr("Update"))
+        w.cancelButton.setText(self.tr("Cancel"))
+        if not w.exec():
             return
         self._check_update_btn.setEnabled(False)
         self._update_download_worker = UpdateDownloadWorker(download_url, self)

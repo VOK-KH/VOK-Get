@@ -3,6 +3,7 @@ In-app auto-updater: check GitHub Releases, download installer, run silent insta
 
 Uses GitHub API for latest release; installer is expected to be built with Inno Setup
 (supports /VERYSILENT, /SUPPRESSMSGBOXES). AppMutex in the installer allows clean upgrade.
+Respects system proxy (e.g. corporate) via getSystemProxy().
 """
 
 import os
@@ -10,15 +11,22 @@ import subprocess
 import sys
 from typing import Tuple
 
-# GitHub repo: owner/repo for API and releases
-GITHUB_REPO = "k10978311-ai/VOK"
+from app.config.store import REPO_URL
+from app.common.utils import getSystemProxy
+from app.common.exception_handler import exceptionHandler
+
+GITHUB_REPO = REPO_URL.split("/")[-2:]
 GITHUB_API_LATEST = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 REQUEST_TIMEOUT = 10
 DOWNLOAD_CHUNK_SIZE = 8192
 
+# Headers so GitHub doesn't reject the request
+_REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+}
+
 
 def _parse_version(version_str: str) -> Tuple[int, ...]:
-    """Convert '0.1.2' or 'v0.1.2' to (0, 1, 2) for comparison."""
     s = (version_str or "").strip().lstrip("v")
     parts = []
     for part in s.split("."):
@@ -34,6 +42,15 @@ def _version_greater(latest: str, current: str) -> bool:
     return _parse_version(latest) > _parse_version(current)
 
 
+def _proxies() -> dict:
+    """Proxies dict for requests (uses system proxy if set)."""
+    proxy = getSystemProxy()
+    if not proxy:
+        return {}
+    return {"http": proxy, "https": proxy}
+
+
+@exceptionHandler("version", (None, None))
 def check_update(current_version: str) -> Tuple[str | None, str | None]:
     """
     Check GitHub Releases for a version newer than current_version.
@@ -48,7 +65,13 @@ def check_update(current_version: str) -> Tuple[str | None, str | None]:
         return None, None
 
     try:
-        r = requests.get(GITHUB_API_LATEST, timeout=REQUEST_TIMEOUT)
+        r = requests.get(
+            GITHUB_API_LATEST,
+            headers=_REQUEST_HEADERS,
+            timeout=REQUEST_TIMEOUT,
+            allow_redirects=True,
+            proxies=_proxies(),
+        )
         r.raise_for_status()
         data = r.json()
     except Exception:
@@ -84,7 +107,13 @@ def download_update(url: str, progress_callback=None) -> str | None:
         return None
 
     try:
-        r = requests.get(url, stream=True, timeout=REQUEST_TIMEOUT)
+        r = requests.get(
+            url,
+            stream=True,
+            headers=_REQUEST_HEADERS,
+            timeout=REQUEST_TIMEOUT,
+            proxies=_proxies(),
+        )
         r.raise_for_status()
         total = int(r.headers.get("content-length") or 0)
     except Exception:
@@ -112,12 +141,7 @@ def download_update(url: str, progress_callback=None) -> str | None:
 
 
 def install_update(installer_path: str) -> None:
-    """
-    Run the Inno Setup installer silently and exit the app.
 
-    Uses /VERYSILENT /SUPPRESSMSGBOXES /NORESTART.
-    Does not return; calls sys.exit(0) after launching the installer.
-    """
     if not installer_path or not os.path.isfile(installer_path):
         return
     try:

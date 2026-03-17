@@ -1,4 +1,4 @@
-"""Command bar for the task download interface: Download Settings, Clipboard, Enhance, Add Link, Clear, Start Download."""
+"""Command bar for the task download interface: Download Settings, Format, Clipboard, Enhance, Add Link, Clear, Start Download."""
 
 from __future__ import annotations
 
@@ -6,14 +6,18 @@ from typing import Optional
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QWidget
-from qfluentwidgets import Action, CommandBar, PrimaryPushButton, ToolButton, ToolTipFilter, themeColor
+from qfluentwidgets import Action, ComboBox, CommandBar, PrimaryPushButton, ToolButton, ToolTipFilter, themeColor
 from qfluentwidgets import FluentIcon as FIF
+
+from app.config.store import load_settings, save_settings
+from app.common.downloader_helpers import DOWNLOAD_FORMATS
 
 
 class TaskCommandBar(QWidget):
     """Command bar widget with actions and Start Download button. Emits signals for parent handling."""
 
     download_settings_clicked  = pyqtSignal()
+    format_changed             = pyqtSignal(str)   # new format name when user changes quick-format
     clipboard_observer_toggled = pyqtSignal(bool)   # True = ON, False = OFF
     clipboard_settings_clicked = pyqtSignal()
     enhance_enabled_changed    = pyqtSignal(bool)
@@ -88,8 +92,19 @@ class TaskCommandBar(QWidget):
             self.tr("Download Settings"),
             triggered=self.download_settings_clicked.emit,
         )
-        download_settings_action.setToolTip(self.tr("Configure download options"))
+        download_settings_action.setToolTip(self.tr("Configure download options (folder, format, performance, cookies)"))
         self.command_bar.addAction(download_settings_action)
+
+        # Quick format (most-used option without opening full dialog)
+        self._format_combo = ComboBox(self)
+        self._format_combo.addItems(DOWNLOAD_FORMATS)
+        self._format_combo.setFixedWidth(160)
+        self._format_combo.setToolTip(self.tr("Output format — change here or in Download Settings"))
+        self._format_combo.currentTextChanged.connect(self._on_format_changed)
+        self._format_combo.installEventFilter(ToolTipFilter(self._format_combo))
+        self.command_bar.addWidget(self._format_combo)
+        self._refresh_format_from_settings()
+
         self.command_bar.addSeparator()
 
         # Clipboard Observer (checkable)
@@ -184,6 +199,27 @@ class TaskCommandBar(QWidget):
             self.stop_clicked.emit()
         else:
             self.start_download_clicked.emit()
+
+    def _on_format_changed(self, text: str) -> None:
+        if not text:
+            return
+        s = load_settings()
+        s["download_format"] = text
+        save_settings(s)
+        self.format_changed.emit(text)
+
+    def _refresh_format_from_settings(self) -> None:
+        s = load_settings()
+        fmt = s.get("download_format", DOWNLOAD_FORMATS[0])
+        idx = self._format_combo.findText(fmt)
+        if idx >= 0:
+            self._format_combo.blockSignals(True)
+            self._format_combo.setCurrentIndex(idx)
+            self._format_combo.blockSignals(False)
+
+    def refresh_from_settings(self) -> None:
+        """Sync quick controls (e.g. format) from saved settings. Call after Download Settings dialog is saved."""
+        self._refresh_format_from_settings()
 
     def set_downloading(self, active: bool) -> None:
         """Toggle the button between Start Download and Stop states."""

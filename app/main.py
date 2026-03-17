@@ -12,6 +12,7 @@ from app.common.application import SingletonApplication, exception_hook
 from app.common.paths import PROJECT_ROOT, APPDATA_DIR
 from app.common.i18n import apply_language, LANGUAGES
 from app.config import load_settings
+from app.config.store import VERSION
 from app.ui.main_window import MainWindow
 from app.ui.theme import apply_app_palette
 
@@ -44,10 +45,9 @@ def main() -> int:
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
-    from app import __version__
     app = SingletonApplication(sys.argv, "VOK")
     app.setApplicationName("VOK")
-    app.setApplicationDisplayName(f"VOK - Video Downloader (v{__version__})")
+    app.setApplicationDisplayName(f"VOK - Video Downloader (v{VERSION})")
     app.setStyle("Fusion")
 
     # ── Translations ──────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ def main() -> int:
 
     # Startup auto-update check (silent — shows InfoBar only if update found)
     if s.get("auto_update_on_start", True):
-        _checker = _StartupUpdateChecker(__version__, parent=window)
+        _checker = _StartupUpdateChecker(VERSION, parent=window)
 
         def _on_update_found(version: str, url: str) -> None:
             InfoBar.info(

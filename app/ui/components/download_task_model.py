@@ -51,7 +51,7 @@ class DownloadTaskModel(QAbstractTableModel):
             if col == COL_TITLE:
                 return row.get("title", "")
             if col == COL_HOST:
-                return row.get("host", "")
+                return ""  # Host column shows only icon (DecorationRole); no text
             if col == COL_STATUS:
                 return row.get("status", _STATUS_PENDING)
             if col == COL_SIZE:
@@ -60,6 +60,9 @@ class DownloadTaskModel(QAbstractTableModel):
                 p = row.get("progress", 0)
                 return f"{p}%" if isinstance(p, int) else "—"
 
+        if role == Qt.ToolTipRole:  # type: ignore
+            if col == COL_HOST:
+                return row.get("host", "") or None  # Show host name on hover when only icon is visible
         if role == Qt.TextAlignmentRole:  # type: ignore
             if col in (COL_HOST, COL_STATUS, COL_SIZE, COL_PROGRESS):
                 return Qt.AlignCenter  # type: ignore

@@ -19,7 +19,14 @@ CONFIG_FILE = CONFIG_FOLDER / "vok_settings.json"
 DB_PATH = get_db_path()
 LOG_FOLDER = get_log_dir()
 COVER_FOLDER = get_cover_folder()
-
+YEAR = 2026
+AUTHOR = "VOK-KH"
+VERSION = "1.0.1"
+APP_NAME = "VOK-Get"
+HELP_URL = "https://github.com/VOK-KH/VOK-Get/issues"
+REPO_URL = "https://github.com/VOK-KH/VOK-Get"
+FEEDBACK_URL = "https://github.com/VOK-KH/VOK-Get/issues"
+RELEASE_URL = "https://github.com/VOK-KH/VOK-Get/releases"
 
 def _settings_path() -> Path:
     return CONFIG_FILE

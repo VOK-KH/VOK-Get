@@ -1,16 +1,22 @@
 # coding: utf-8
+"""Icons loaded from resource.qrc (:/app/...). Add corresponding SVGs to resources and resource.qrc to use new entries."""
+
 from enum import Enum
 
 from qfluentwidgets import FluentIconBase, getIconColor, Theme
 
 
 class Icon(FluentIconBase, Enum):
+    """Icons from :/app/images/icons/ (prefix + {value}_{theme}.svg)."""
 
     SELECT = "Select"
     SETTINGS = "Settings"
     SETTINGS_FILLED = "SettingsFilled"
     CLOUD_DOWNLOAD = "CloudDownload"
     CLOUD_DOWNLOAD_FILLED = "CloudDownloadFilled"
+    PASTE = "Paste"
+    COPY = "CopyIcon"
+    PASSED = "PassedIcon"
 
     def path(self, theme=Theme.AUTO):
         return f":/app/images/icons/{self.value}_{getIconColor(theme)}.svg"
@@ -33,6 +39,7 @@ class PNG(FluentIconBase, Enum):
 
 
 class Logo(FluentIconBase, Enum):
+    """Icons from :/app/images/logo/ ({value}.svg)."""
 
     KEY = "Key"
     GEAR = "Gear"

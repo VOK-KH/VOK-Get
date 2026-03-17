@@ -5,6 +5,8 @@ from pathlib import Path
 
 from app.config.store import COVER_FOLDER, DB_PATH, LOG_FOLDER
 
+DEBUG = "__compiled__" not in globals()
+
 # Single source of truth: pyproject.toml [project].version (works in CI and when not installed)
 def _get_version() -> str:
     try:

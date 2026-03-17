@@ -5,7 +5,6 @@ from PyQt5.QtGui import QColor, QPixmap
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
-    FluentIcon,
     IndeterminateProgressBar,
     LineEdit,
     ProgressBar,
@@ -14,11 +13,12 @@ from qfluentwidgets import (
 )
 
 from app.common.concurrent import PlaylistFetchWorker
-from app.common.paths import RESOURCES_DIR
+from app.common.icon import Icon, Logo
 from app.config.store import load_settings
 from app.core.download import detect_collection_url, url_to_single_video
 from app.core.task_queue import is_http_url, build_playlist_task_entries
-from app.ui.dialogs import BulkUrlDialog, DownloadSettingsDialog
+from app.ui.dialogs import BulkUrlDialog
+from app.common.paths import RESOURCES_DIR
 
 LOGO_PATH = RESOURCES_DIR / "logo.png"
 
@@ -97,29 +97,23 @@ class UrlDownloadInterface(QWidget):
 
         _aux_ss = "QToolButton { border: none; border-radius: 20px; background-color: rgba(128,128,128,0.18); } QToolButton:hover { background-color: rgba(128,128,128,0.28); }"
 
-        self._paste_btn = ToolButton(FluentIcon.PASTE, self)
+        self._paste_btn = ToolButton(Icon.PASSED, self)
         self._paste_btn.setFixedSize(40, 40)
         self._paste_btn.setToolTip(self.tr("Paste from clipboard"))
         self._paste_btn.setStyleSheet(_aux_ss)
 
-        self._bulk_btn = ToolButton(FluentIcon.COPY, self)
+        self._bulk_btn = ToolButton(Icon.COPY, self)
         self._bulk_btn.setFixedSize(40, 40)
         self._bulk_btn.setToolTip(self.tr("Bulk URLs — enter multiple URLs at once"))
         self._bulk_btn.setStyleSheet(_aux_ss)
 
-        self._settings_btn = ToolButton(FluentIcon.SETTING, self)
-        self._settings_btn.setFixedSize(40, 40)
-        self._settings_btn.setToolTip(self.tr("Download settings (format, folder, cookies)"))
-        self._settings_btn.setStyleSheet(_aux_ss)
-
-        self._action_btn = ToolButton(FluentIcon.DOWNLOAD, self)
+        self._action_btn = ToolButton(Icon.CLOUD_DOWNLOAD, self)
         self._action_btn.setFixedSize(40, 40)
         self._apply_primary_btn_style()
 
         row.addWidget(self._url_input)
         row.addWidget(self._paste_btn)
         row.addWidget(self._bulk_btn)
-        row.addWidget(self._settings_btn)
         row.addWidget(self._action_btn)
         self._layout.addLayout(row)
         self._layout.addSpacing(100)
@@ -160,7 +154,7 @@ class UrlDownloadInterface(QWidget):
         status_layout.addWidget(self._fetch_progress, 0, Qt.AlignCenter)
 
         # Cancel extraction button
-        self._cancel_fetch_btn = ToolButton(FluentIcon.CANCEL, self)
+        self._cancel_fetch_btn = ToolButton(Logo.WASTEBASKET, self)
         self._cancel_fetch_btn.setToolTip(self.tr("Cancel extraction"))
         self._cancel_fetch_btn.hide()
         self._cancel_fetch_btn.clicked.connect(self._cancel_extraction)
@@ -176,13 +170,12 @@ class UrlDownloadInterface(QWidget):
         self._url_input.returnPressed.connect(self._on_action_clicked)
         self._paste_btn.clicked.connect(self._on_paste_clicked)
         self._bulk_btn.clicked.connect(self._on_bulk_clicked)
-        self._settings_btn.clicked.connect(self._on_settings_clicked)
         self._url_input.textChanged.connect(self._on_text_changed)
 
     # ── Slots ─────────────────────────────────────────────────────────────
 
     def _on_text_changed(self):
-        self._action_btn.setIcon(FluentIcon.DOWNLOAD)
+        self._action_btn.setIcon(Icon.CLOUD_DOWNLOAD.icon())
         has_url = bool(self._url_input.text().strip())
         self._paste_btn.setVisible(not has_url)
         self._bulk_btn.setVisible(not has_url)
@@ -191,10 +184,6 @@ class UrlDownloadInterface(QWidget):
         text = QApplication.clipboard().text().strip()
         if text:
             self._url_input.setText(text)
-
-    def _on_settings_clicked(self):
-        dialog = DownloadSettingsDialog(self)
-        dialog.exec_()
 
     def _on_bulk_clicked(self):
         dialog = BulkUrlDialog(self)

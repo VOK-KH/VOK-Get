@@ -437,7 +437,9 @@ class TaskDownloadInterface(QWidget):
     # ── Save Folder / Download Settings ───────────────────────────────────
 
     def _on_download_settings(self) -> None:
-        DownloadSettingsDialog(self).exec_()
+        d = DownloadSettingsDialog(self)
+        if d.exec_():
+            self._command_bar.refresh_from_settings()
 
     # ── Download / Cancel ──────────────────────────────────────────────────
 
