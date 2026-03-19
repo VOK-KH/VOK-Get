@@ -174,12 +174,9 @@ Export cookies from your browser using the [Get cookies.txt LOCALLY](https://chr
   ```bash
   uv lock --upgrade && uv sync
   ```
-  Or run:
-  - Windows: `scripts/update-deps.bat`
-  - Unix: `scripts/update-deps.sh`
 
 ---
 
 ## License
 
-MIT
+MIT License © 2026 VOK — see [LICENSE](LICENSE)
