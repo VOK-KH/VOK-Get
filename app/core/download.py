@@ -67,21 +67,14 @@ def check_unsupported_url(url: str) -> str | None:
 # These fix embed/modal/share URLs that yt-dlp's extractors don't accept.
 # ---------------------------------------------------------------------------
 _URL_RULES: list[tuple[re.Pattern, "Callable[[re.Match], str]"]] = [
-    # Douyin jingxuan/featured page with modal_id query param
-    #   https://www.douyin.com/jingxuan?modal_id=7602920755290033448
-    #   → https://www.douyin.com/video/7602920755290033448
     (
         re.compile(r"douyin\.com/[^?#]*\?.*modal_id=(\d+)", re.I),
         lambda m: f"https://www.douyin.com/video/{m.group(1)}",
     ),
-    # Douyin share short-links  iesdouyin.com/share/video/ID/
     (
         re.compile(r"iesdouyin\.com/share/video/(\d+)", re.I),
         lambda m: f"https://www.douyin.com/video/{m.group(1)}",
     ),
-    # TikTok share/embed  vm.tiktok.com or vt.tiktok.com (short links — keep as-is,
-    # yt-dlp follows redirects; only the modal pattern needs rewriting)
-    # VK clip embed  vk.com/clip-OWNER_ID  → vk.com/video-OWNER_ID  (same content)
     (
         re.compile(r"(https?://(?:www\.)?vk\.com/)clip(-\d+_\d+)", re.I),
         lambda m: f"{m.group(1)}video{m.group(2)}",

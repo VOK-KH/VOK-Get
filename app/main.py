@@ -55,7 +55,6 @@ def main() -> int:
     _locale_str = LANGUAGES.get(_lang_pref, "")
     apply_language(_locale_str)
 
-    # Redirect QFluentWidgets internal config to AppData/ so config/ folder is not needed.
     qconfig.FILE = APPDATA_DIR / "config.json"
 
     s = load_settings()
