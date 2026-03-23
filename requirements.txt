@@ -65,7 +65,7 @@ PyQt5-Frameless-Window==0.8.0
 PyQt5-Qt5==5.15.2
 PyQt5_sip==12.18.0
 PyQt5Designer==5.14.1
-PyQt6==6.10.0
+PyQt6==6.10.2
 PyQt6-Qt6==6.10.0
 PyQt6_sip==13.10.2
 PySide6==6.10.2
