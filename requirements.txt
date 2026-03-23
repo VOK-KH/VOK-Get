@@ -24,7 +24,7 @@ drf-spectacular==0.29.0
 filelock==3.20.1
 fonttools==4.60.1
 fsspec==2025.12.0
-gdown==5.2.0
+gdown==5.2.1
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
